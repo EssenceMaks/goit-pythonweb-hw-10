@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Контакти | FastAPI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/menu/menu.css">
+  <link rel="stylesheet" href="/static/contacts/contacts.css">
+  <link rel="stylesheet" href="/static/filter/filter.css">
+  <link rel="stylesheet" href="/static/popups/popups.css">
+  <link rel="stylesheet" href="/static/footer/footer.css">
+</head>
+<body>
+  <div id="db-status-block" style="margin: 0.5em 0; font-weight: bold;"></div>
+  <div class="main-container">
+    <div class="grid">
+      {% include 'menu/menu.html' %}
+      <div class="sort">
+        <input type="text" id="contact-search" class="contact-search" placeholder="Пошук..." autocomplete="off" style="margin-right:1em;max-width:180px;">
+        <b>Сортування:</b>
+
+      </div>
+      {% include 'contacts/contacts.html' %}
+      {% include 'footer/footer.html' %}
+    </div>
+  </div>
+  {% include 'popups/full_contact_popup.html' %}
+  {% include 'popups/contact_form.html' %}
+  {% include 'popups/confirm_delete.html' %}
+  <script src="/static/app.js"></script>
+  <script src="/static/menu/menu.js"></script>
+  <script src="/static/contacts/contacts.js"></script>
+  <script src="/static/filter/filter.js"></script>
+  <script src="/static/popups/popups.js"></script>
+  <script src="/static/footer/footer.js"></script>
+</body>
+</html>
