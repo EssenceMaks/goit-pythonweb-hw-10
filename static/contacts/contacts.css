@@ -198,3 +198,59 @@ color: #4a5568;
 color: #3f4856; 
 color: #525c6e;  
 }
+
+/* Стили для отображения дней рождения по пользователям */
+.user-birthday-header {
+  background: rgba(35, 41, 55, 0.5);
+  padding: 10px 15px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  border-left: 3px solid #4a90e2;
+}
+
+.user-birthday-header h3 {
+  margin: 0 0 5px 0;
+  font-size: 1.1em;
+  color: #e2e8f0;
+}
+
+.user-info {
+  font-size: 0.9em;
+  opacity: 0.9;
+}
+
+.birthday-section {
+  margin: 10px 0;
+  padding-left: 10px;
+}
+
+.birthday-section b {
+  color: #e2e8f0;
+}
+
+.birthday-section ul {
+  margin-top: 5px;
+  padding-left: 25px;
+}
+
+.birthday-section li {
+  margin-bottom: 5px;
+  position: relative;
+}
+
+.birthday-section button.show-info-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  background-color: #4a5568;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 5px;
+  vertical-align: middle;
+  transition: background-color 0.2s ease;
+}
+
+.birthday-section button.show-info-btn:hover {
+  background-color: #2d3748;
+}

@@ -82,3 +82,19 @@ class UserWithContacts(BaseModel):
     contacts: List[Contact] = []
     class Config:
         orm_mode = True
+
+class UserWithBirthdays(BaseModel):
+    """
+    Схема пользователя с контактами, у которых скоро день рождения.
+    Используется для отображения списка дней рождений контактов,
+    сгруппированных по пользователям.
+    """
+    id: int
+    username: str
+    email: EmailStr
+    role: Optional[str] = "user"
+    contacts_next7days: List[Contact] = []  # Контакты с ДР в ближайшие 7 дней
+    contacts_next12months: List[Contact] = []  # Контакты с ДР в ближайшие 12 месяцев
+    
+    class Config:
+        orm_mode = True

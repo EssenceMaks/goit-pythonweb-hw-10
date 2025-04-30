@@ -7,7 +7,7 @@ import logging
 import crud, models, schemas
 from database import SessionLocal
 from models import Contact, User
-from schemas import Contact as ContactSchema, ContactCreate, ContactUpdate, UserWithContacts
+from schemas import Contact as ContactSchema, ContactCreate, ContactUpdate, UserWithContacts, UserWithBirthdays
 # Используем обновлённые функции авторизации
 from auth import get_current_user, check_contact_access
 
@@ -92,6 +92,75 @@ async def read_contacts_grouped(
             role=u.role,
             contacts=contacts_data
         ))
+    return result
+
+@router.get("/grouped/birthdays", response_model=List[UserWithBirthdays])
+async def read_birthdays_grouped_by_users(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Получение дней рождения, сгруппированных по пользователям.
+    Только для администраторов и суперадминов.
+    """
+    # Проверяем, что пользователь имеет права администратора
+    if current_user.role not in ["superadmin", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Недостаточно прав для доступа к этому ресурсу"
+        )
+    
+    # Получаем всех пользователей
+    query_users = db.query(models.User)
+    users = query_users.all()
+    
+    result = []
+    today = date.today()
+    in_seven_days = today + timedelta(days=7)
+    today_md = today.month * 100 + today.day
+    in_seven_days_md = in_seven_days.month * 100 + in_seven_days.day
+    
+    for user in users:
+        # Дни рождения в ближайшие 7 дней
+        next7_query = db.query(models.Contact).filter(
+            models.Contact.user_id == user.id,
+            models.Contact.birthday.isnot(None)
+        )
+        
+        if today_md <= in_seven_days_md:
+            next7_contacts = next7_query.filter(
+                birthday_md_expr().between(today_md, in_seven_days_md)
+            ).all()
+        else:
+            next7_contacts = next7_query.filter(
+                or_(
+                    birthday_md_expr().between(today_md, 1231),
+                    birthday_md_expr().between(101, in_seven_days_md)
+                )
+            ).all()
+        
+        # Дни рождения в ближайшие 12 месяцев
+        next12_contacts = db.query(models.Contact).filter(
+            models.Contact.user_id == user.id,
+            models.Contact.birthday.isnot(None),
+            birthday_md_expr() >= today_md
+        ).order_by(
+            extract('month', models.Contact.birthday),
+            extract('day', models.Contact.birthday)
+        ).all()
+        
+        # Не добавляем пользователей без контактов с днями рождения
+        if next7_contacts or next12_contacts:
+            result.append(schemas.UserWithBirthdays(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                role=user.role,
+                contacts_next7days=[schemas.Contact.model_validate(c, from_attributes=True) for c in next7_contacts],
+                contacts_next12months=[schemas.Contact.model_validate(c, from_attributes=True) for c in next12_contacts]
+            ))
+    
     return result
 
 @router.get("/", response_model=List[ContactSchema])
