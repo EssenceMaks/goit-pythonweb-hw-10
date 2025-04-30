@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="/static/filter/filter.css">
   <link rel="stylesheet" href="/static/popups/popups.css">
   <link rel="stylesheet" href="/static/footer/footer.css">
+  
+  <!-- Подключаем авторизационный скрипт первым для всех страниц -->
+  <script src="/static/auth.js"></script>
 </head>
 <body>
   <div id="db-status-block" style="margin: 0.5em 0; font-weight: bold;"></div>
@@ -27,11 +30,37 @@
   {% include 'popups/full_contact_popup.html' %}
   {% include 'popups/contact_form.html' %}
   {% include 'popups/confirm_delete.html' %}
+ 
+ 
+
+  
+  <!-- Скрипты должны быть подключены после авторизационного скрипта -->
   <script src="/static/app.js"></script>
   <script src="/static/menu/menu.js"></script>
   <script src="/static/contacts/contacts.js"></script>
   <script src="/static/filter/filter.js"></script>
   <script src="/static/popups/popups.js"></script>
   <script src="/static/footer/footer.js"></script>
+  
+  <script>
+    // Инициализируем роль пользователя для скриптов
+    window.userRole = "{{ user.role if user and user.role else 'user' }}";
+    console.log('User role:', window.userRole);
+    
+    // Передаем ID текущего пользователя для проверки на самоизменение ролей
+    window.currentUserId = "{{ user.id if user and user.id else '' }}";
+    console.log('Current user ID:', window.currentUserId);
+    
+    // Добавляем информацию о токене для отладки
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Cookie есть:', document.cookie.includes('access_token'));
+      
+      if (typeof authorizedFetch === 'function') {
+        console.log('authorizedFetch успешно загружен');
+      } else {
+        console.error('authorizedFetch не загружен!');
+      }
+    });
+  </script>
 </body>
 </html>

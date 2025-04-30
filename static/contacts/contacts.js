@@ -49,7 +49,8 @@ document.addEventListener('click', async function(e) {
       birthdayMode = false;
       expandedContactId = null;
       document.querySelectorAll('#contacts-views button').forEach(btn => btn.classList.remove('active-birthday-btn'));
-      renderContacts();
+      // Используем authorizedFetch для получения данных при выходе из birthdayMode
+      await fetchAndRenderContactsInner({search: document.getElementById('contact-search')?.value || '', dir: alphaSortDir});
       return;
     }
     // Клик вне шаблона дней рожденья — выйти из режима
@@ -57,7 +58,8 @@ document.addEventListener('click', async function(e) {
       birthdayMode = false;
       expandedContactId = null;
       document.querySelectorAll('#contacts-views button').forEach(btn => btn.classList.remove('active-birthday-btn'));
-      renderContacts();
+      // Используем authorizedFetch для получения данных при выходе из birthdayMode 
+      await fetchAndRenderContactsInner({search: document.getElementById('contact-search')?.value || '', dir: alphaSortDir});
       return;
     }
     // Внутри birthdayMode ничего не делаем
@@ -234,9 +236,8 @@ async function fetchContacts() {
     if (userId) params.push('user_id=' + encodeURIComponent(userId));
     const url = '/contacts' + (params.length ? '?' + params.join('&') : '');
     try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-      return Array.isArray(data) ? data : [];
+      // Используем authorizedFetch для отправки JWT-токена
+      return await authorizedFetch(url);
     } catch {
       return [];
     }
@@ -244,9 +245,8 @@ async function fetchContacts() {
     // Для админа и супер-админа — новый endpoint
     const url = '/contacts/grouped' + (params.length ? '?' + params.join('&') : '');
     try {
-      const resp = await fetch(url);
-      const data = await resp.json();
-      return Array.isArray(data) ? data : [];
+      // Используем authorizedFetch для отправки JWT-токена
+      return await authorizedFetch(url);
     } catch {
       return [];
     }
@@ -258,12 +258,12 @@ async function fetchContact(id) {
   const userId = window.selectedUserId || document.body.dataset.userId;
   let url = `/contacts/${id}`;
   if (userId) url += `?user_id=${encodeURIComponent(userId)}`;
-  const resp = await fetch(url);
-  return await resp.json();
+  // Используем authorizedFetch для отправки JWT-токена
+  return await authorizedFetch(url);
 }
 
 async function renderContacts() {
-  if (birthdayMode) return; // Не рендерить обычные контакты, если активен шаблон дней рождений
+  if (birthdayMode) return; // Не рендерить обычные контакты, если активен шаблон дней рожденья
   const list = document.getElementById('contacts-list');
   list.innerHTML = '<div>Завантаження...</div>';
   const data = contactsCache;
@@ -274,14 +274,44 @@ async function renderContacts() {
     if (!Array.isArray(data) || !data.length) {
       html = '<div>Контакти не знайдено</div>';
     } else {
+      // Получаем ID текущего пользователя для сравнения
+      const currentUserId = window.currentUserId || '';
+      
       data.forEach(user => {
+        // Добавляем кнопку смены роли только для админов и обычных пользователей
+        // Но не для суперадминов и не для текущего пользователя
+        const userRole = user.role || 'user';
+        let roleButtonHtml = '';
+        
+        // Проверяем, что это не суперадмин и не текущий пользователь
+        if (userRole !== 'superadmin' && String(user.id) !== String(currentUserId)) {
+          const newRole = userRole === 'admin' ? 'user' : 'admin';
+          const btnText = userRole === 'admin' ? 'Зробити просто юзером' : 'Зробити адміном';
+          roleButtonHtml = `<button class="change-role-btn" data-user-id="${user.id}" data-current-role="${userRole}" data-new-role="${newRole}">${btnText}</button>`;
+        }
+        
         html += `<div class="user-contacts-section">
           <div class="user-header">
-            <b>${user.username}</b> <span style="color:#b6d5fa">(${user.email}, ${user.role})</span>
+            <b>${user.username}</b> <span style="color:#b6d5fa">(${user.email}, ${userRole})</span>
+            ${roleButtonHtml}
           </div>
-          <div class="user-contacts-list">
-            ${Array.isArray(user.contacts) && user.contacts.length ? user.contacts.map(contact => renderContactTile(contact, contactsViewMode)).join('') : '<div style="margin-left:1em;opacity:0.7">— Контактів немає —</div>'}
-          </div>
+          <div class="user-contacts-list">`;
+          
+        // Проверяем наличие контактов
+        if (Array.isArray(user.contacts) && user.contacts.length) {
+          // Правильное отображение контактов в зависимости от выбранного режима просмотра
+          if (contactsViewMode === 4) {
+            // Для режима viewMode 4 используем функцию renderFullContactTile
+            html += user.contacts.map(contact => renderFullContactTile(contact)).join('');
+          } else {
+            // Для других режимов используем существующую функцию renderContactTile
+            html += user.contacts.map(contact => renderContactTile(contact, contactsViewMode)).join('');
+          }
+        } else {
+          html += '<div style="margin-left:1em;opacity:0.7">— Контактів немає —</div>';
+        }
+        
+        html += `</div>
         </div><hr style="margin:14px 0;opacity:0.2">`;
       });
     }
@@ -322,8 +352,9 @@ function fetchAndRenderBirthdaysTemplate() {
   const contactsList = document.getElementById('contacts-list');
   let html = '';
   updateApiLink('/contacts/birthdays/next7days');
-  fetch('/contacts/birthdays/next7days')
-    .then(r => r.json())
+  
+  // Используем authorizedFetch вместо fetch
+  authorizedFetch('/contacts/birthdays/next7days')
     .then(data7 => {
       html += '<div><b>Найближчі 7 днів Дні Народження будуть у:</b></div>';
       if (!Array.isArray(data7) || data7.length === 0) {
@@ -333,40 +364,38 @@ function fetchAndRenderBirthdaysTemplate() {
       }
       html += '<hr style="margin:1em 0;">';
       html += '<div><b>Наступні найближчі Дні Народженя:</b></div>';
-      fetch('/contacts/birthdays/next12months')
-        .then(r => r.json())
-        .then(data12 => {
-          if (Array.isArray(data12) && data12.length > 0) {
-            const months = {};
-            data12.forEach(c => {
-              if (!c.birthday) return;
-              const m = (new Date(c.birthday)).toLocaleString('uk-UA', {month: 'long'});
-              if (!months[m]) months[m] = [];
-              months[m].push(c);
-            });
-            Object.keys(months).forEach(month => {
-              html += `<div style="margin-top:1em;"><b>${month}:</b></div>`;
-              html += '<ul>' + months[month].map(c => `<li>${c.first_name} ${c.last_name || ''} (${c.birthday || ''}) <button class="show-info-btn" data-id="${c.id}">інфо</button></li>`).join('') + '</ul>';
-            });
-          } else {
-            html += '<div style="margin:1em 0;">немає контактів</div>';
-          }
-          contactsList.innerHTML = html;
-          contactsList.querySelectorAll('.show-info-btn').forEach(btn => {
-            btn.addEventListener('click', e => {
-              const id = btn.getAttribute('data-id');
-              if (typeof openFullContactPopup === 'function') openFullContactPopup(id);
-              updateApiLink(`/contacts/${id}`);
-            });
-          });
-        })
-        .catch(() => {
-          html += '<div style="color:red">Помилка завантаження наступних Днів Народження</div>';
-          contactsList.innerHTML = html;
-        });
+      
+      // Используем authorizedFetch вместо fetch
+      return authorizedFetch('/contacts/birthdays/next12months');
     })
-    .catch(() => {
-      contactsList.innerHTML = '<div style="color:red">Помилка завантаження найближчих Днів Народження</div>';
+    .then(data12 => {
+      if (Array.isArray(data12) && data12.length > 0) {
+        const months = {};
+        data12.forEach(c => {
+          if (!c.birthday) return;
+          const m = (new Date(c.birthday)).toLocaleString('uk-UA', {month: 'long'});
+          if (!months[m]) months[m] = [];
+          months[m].push(c);
+        });
+        Object.keys(months).forEach(month => {
+          html += `<div style="margin-top:1em;"><b>${month}:</b></div>`;
+          html += '<ul>' + months[month].map(c => `<li>${c.first_name} ${c.last_name || ''} (${c.birthday || ''}) <button class="show-info-btn" data-id="${c.id}">інфо</button></li>`).join('') + '</ul>';
+        });
+      } else {
+        html += '<div style="margin:1em 0;">немає контактів</div>';
+      }
+      contactsList.innerHTML = html;
+      contactsList.querySelectorAll('.show-info-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+          const id = btn.getAttribute('data-id');
+          if (typeof openFullContactPopup === 'function') openFullContactPopup(id);
+          updateApiLink(`/contacts/${id}`);
+        });
+      });
+    })
+    .catch(error => {
+      contactsList.innerHTML = '<div style="color:red">Помилка завантаження Днів Народження</div>';
+      console.error('Ошибка при загрузке дней рождения:', error);
     });
 }
 
@@ -376,8 +405,7 @@ async function fetchAndRenderContactsInner({birthdayMode: localBirthdayMode = fa
     // --- Только birthday-шаблон! ---
     let html = '';
     updateApiLink('/contacts/birthdays/next7days');
-    fetch('/contacts/birthdays/next7days')
-      .then(r => r.json())
+    authorizedFetch('/contacts/birthdays/next7days')
       .then(data7 => {
         html += '<div><b>Найближчі 7 днів Дні Народження будуть у:</b></div>';
         if (!Array.isArray(data7) || data7.length === 0) {
@@ -387,38 +415,32 @@ async function fetchAndRenderContactsInner({birthdayMode: localBirthdayMode = fa
         }
         html += '<hr style="margin:1em 0;">';
         html += '<div><b>Наступні найближчі Дні Народженя:</b></div>';
-        fetch('/contacts/birthdays/next12months')
-          .then(r => r.json())
-          .then(data12 => {
-            if (Array.isArray(data12) && data12.length > 0) {
-              const months = {};
-              data12.forEach(c => {
-                if (!c.birthday) return;
-                const m = (new Date(c.birthday)).toLocaleString('uk-UA', {month: 'long'});
-                if (!months[m]) months[m] = [];
-                months[m].push(c);
-              });
-              Object.keys(months).forEach(month => {
-                html += `<div style="margin-top:1em;"><b>${month}:</b></div>`;
-                html += '<ul>' + months[month].map(c => `<li>${c.first_name} ${c.last_name || ''} (${c.birthday || ''}) <button class="show-info-btn" data-id="${c.id}">інфо</button></li>`).join('') + '</ul>';
-              });
-            } else {
-              html += '<div style="margin:1em 0;">немає контактів</div>';
-            }
-            contactsList.innerHTML = html;
-            contactsList.querySelectorAll('.show-info-btn').forEach(btn => {
-              btn.addEventListener('click', e => {
-                const id = btn.getAttribute('data-id');
-                if (typeof openFullContactPopup === 'function') openFullContactPopup(id);
-                updateApiLink(`/contacts/${id}`);
-              });
-            });
-          })
-          .catch(() => {
-            html += '<div style="color:red">Помилка завантаження наступних Днів Народження</div>';
-            contactsList.innerHTML = html;
+        return authorizedFetch('/contacts/birthdays/next12months');
+      })
+      .then(data12 => {
+        if (Array.isArray(data12) && data12.length > 0) {
+          const months = {};
+          data12.forEach(c => {
+            if (!c.birthday) return;
+            const m = (new Date(c.birthday)).toLocaleString('uk-UA', {month: 'long'});
+            if (!months[m]) months[m] = [];
+            months[m].push(c);
           });
-        return;
+          Object.keys(months).forEach(month => {
+            html += `<div style="margin-top:1em;"><b>${month}:</b></div>`;
+            html += '<ul>' + months[month].map(c => `<li>${c.first_name} ${c.last_name || ''} (${c.birthday || ''}) <button class="show-info-btn" data-id="${c.id}">інфо</button></li>`).join('') + '</ul>';
+          });
+        } else {
+          html += '<div style="margin:1em 0;">немає контактів</div>';
+        }
+        contactsList.innerHTML = html;
+        contactsList.querySelectorAll('.show-info-btn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            const id = btn.getAttribute('data-id');
+            if (typeof openFullContactPopup === 'function') openFullContactPopup(id);
+            updateApiLink(`/contacts/${id}`);
+          });
+        });
       })
       .catch(() => {
         contactsList.innerHTML = '<div style="color:red">Помилка завантаження найближчих Днів Народження</div>';
@@ -542,11 +564,15 @@ document.addEventListener('click', function(e) {
 });
 
 function openFullContactPopup(id) {
-  fetch(`/contacts/${id}`)
-    .then(resp => resp.json())
+  // Используем authorizedFetch вместо fetch
+  authorizedFetch(`/contacts/${id}`)
     .then(contact => {
       document.getElementById('popup-full-contact-content').innerHTML = renderFullContact(contact);
       openPopup('popup-full-contact');
+    })
+    .catch(error => {
+      console.error('Ошибка при загрузке контакта:', error);
+      alert('Не удалось загрузить контакт. Пожалуйста, попробуйте снова.');
     });
 }
 
@@ -616,14 +642,12 @@ async function openEditContactPopup(id) {
     const userId = window.selectedUserId || document.body.dataset.userId;
     let url = `/contacts/${id}`;
     if (userId) url += `?user_id=${encodeURIComponent(userId)}`;
-    const resp = await fetch(url);
-    if (resp.ok) {
-      const contact = await resp.json();
-      fillContactForm(contact);
-      const popupH2 = document.querySelector('#popup-create-contact h2');
-      if (popupH2) popupH2.innerText = 'Редагувати контакт';
-      createForm.setAttribute('data-edit-id', id);
-    }
+    const resp = await authorizedFetch(url);
+    const contact = await resp;
+    fillContactForm(contact);
+    const popupH2 = document.querySelector('#popup-create-contact h2');
+    if (popupH2) popupH2.innerText = 'Редагувати контакт';
+    createForm.setAttribute('data-edit-id', id);
   }, 100);
 }
 
@@ -821,39 +845,22 @@ if (createForm) {
       data.user_id = userId;
     }
     try {
-      const resp = await fetch(url, {
+      // Используем authorizedFetch вместо fetch
+      const resp = await authorizedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (resp.ok) {
-        closePopup('popup-create-contact');
-        createForm.reset();
-        createForm.removeAttribute('data-edit-id');
-        const popupH2 = document.querySelector('#popup-create-contact h2');
-        if (popupH2) popupH2.innerText = 'Создать контакт';
-        window.resetContactsUI();
-        window.fetchAndRenderContacts();
-      } else {
-        let errText = 'Помилка збереження контакту';
-        try {
-          const err = await resp.json();
-          if (err.detail) {
-            if (Array.isArray(err.detail)) {
-              // FastAPI валідація
-              errText = err.detail.map(e => {
-                let loc = Array.isArray(e.loc) ? e.loc.join('.') : '';
-                return `${e.msg}${loc ? ` [${loc}]` : ''}`;
-              }).join('\n');
-            } else {
-              errText = err.detail;
-            }
-          }
-        } catch {}
-        alert(errText);
-      }
+      
+      closePopup('popup-create-contact');
+      createForm.reset();
+      createForm.removeAttribute('data-edit-id');
+      const popupH2 = document.querySelector('#popup-create-contact h2');
+      if (popupH2) popupH2.innerText = 'Создать контакт';
+      window.resetContactsUI();
+      window.fetchAndRenderContacts();
     } catch (e) {
-      alert('Помилка мережі: ' + (e.message || ''));
+      alert('Ошибка: ' + (e.message || 'Не удалось сохранить контакт'));
     }
   });
 }
@@ -865,31 +872,30 @@ if (btnDelete) {
     const id = btnDelete.getAttribute('data-id');
     if (!id) return;
     try {
-      // Add user_id to query param for delete
       const userId = window.selectedUserId;
       let url = `/contacts/${id}`;
       if (userId) url += `?user_id=${encodeURIComponent(userId)}`;
-      const resp = await fetch(url, { method: 'DELETE' });
-      if (resp.ok) {
-         closePopup('popup-confirm-delete');
-        window.resetContactsUI();
-        window.fetchAndRenderContacts();
-        // Получить новое количество контактов и вывести сообщение в футер
-        try {
-          const respCount = await fetch('/db/check-state');
-          if (respCount.ok) {
-            const data = await respCount.json();
-            if (typeof addFooterMessage === 'function') {
-              addFooterMessage(`Контакт удалён. Теперь в базе ${data.count} контактов.`, 'success');
-            }
-          }
-        } catch {}
-
-      } else {
-        alert('Помилка видалення');
+      
+      // Используем authorizedFetch вместо fetch
+      await authorizedFetch(url, { 
+        method: 'DELETE' 
+      });
+      
+      closePopup('popup-confirm-delete');
+      window.resetContactsUI();
+      window.fetchAndRenderContacts();
+      
+      // Получить новое количество контактов
+      try {
+        const data = await authorizedFetch('/db/check-state');
+        if (typeof addFooterMessage === 'function') {
+          addFooterMessage(`Контакт удалён. Теперь в базе ${data.count} контактов.`, 'success');
+        }
+      } catch (e) {
+        console.error('Ошибка при получении статистики:', e);
       }
-    } catch {
-      alert('Помилка мережі');
+    } catch (e) {
+      alert('Ошибка при удалении контакта: ' + e.message);
     }
   });
 }
@@ -1028,3 +1034,107 @@ document.addEventListener('click', function(e) {
     if (id) showApiLinkForContact(id);
   }
 });
+
+// Функция сброса и обновления контактов для групповых операций
+function resetContactsUI() {
+  console.log('Сброс UI контактов');
+  // Сбросить состояние UI
+  contactsViewMode = 2;
+  expandedContactId = null;
+  birthdayMode = false;
+  
+  // Очистить поле поиска
+  const searchInput = document.getElementById('contact-search');
+  if (searchInput) searchInput.value = '';
+  
+  // Снять выделение с кнопок дней рождения
+  document.querySelectorAll('#contacts-views button').forEach(btn => btn.classList.remove('active-birthday-btn'));
+}
+
+// Функция для загрузки и отображения контактов после групповых операций
+async function fetchAndRenderContacts() {
+  await fetchAndRenderContactsInner();
+}
+
+// Обработчик события для кнопок смены роли пользователя
+document.addEventListener('click', function(e) {
+  const changeRoleBtn = e.target.closest('.change-role-btn');
+  if (changeRoleBtn) {
+    const userId = changeRoleBtn.dataset.userId;
+    const currentRole = changeRoleBtn.dataset.currentRole;
+    const newRole = changeRoleBtn.dataset.newRole;
+    
+    const message = currentRole === 'admin' 
+      ? 'Ви дійсно хочете змінити роль користувача з адміна на юзера?'
+      : 'Ви дійсно хочете змінити роль користувача з юзера на адміна?';
+    
+    // Устанавливаем текст сообщения в попапе
+    const messageElement = document.getElementById('confirm-change-role-message');
+    if (messageElement) {
+      messageElement.textContent = message;
+    }
+    
+    // Сохраняем данные для обработчика подтверждения
+    const confirmBtn = document.getElementById('btn-confirm-change-role');
+    if (confirmBtn) {
+      confirmBtn.dataset.userId = userId;
+      confirmBtn.dataset.newRole = newRole;
+    }
+    
+    // Отображаем попап для подтверждения
+    openPopup('popup-confirm-change-role');
+  }
+});
+
+// Обработчик события для кнопки подтверждения изменения роли
+document.addEventListener('DOMContentLoaded', function() {
+  const confirmChangeRoleBtn = document.getElementById('btn-confirm-change-role');
+  if (confirmChangeRoleBtn) {
+    confirmChangeRoleBtn.addEventListener('click', async function() {
+      const userId = this.dataset.userId;
+      const newRole = this.dataset.newRole;
+      
+      if (!userId || !newRole) {
+        console.error('Отсутствуют обязательные данные для изменения роли');
+        return;
+      }
+      
+      try {
+        // Отправляем запрос на изменение роли пользователя
+        const response = await authorizedFetch(`/users/${userId}/change-role`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ role: newRole })
+        });
+        
+        // Закрываем попап
+        closePopup('popup-confirm-change-role');
+        
+        // Выводим сообщение об успешном изменении роли
+        if (typeof addFooterMessage === 'function') {
+          addFooterMessage(`Роль користувача успішно змінена на "${newRole}"`, 'success');
+        } else {
+          alert(`Роль користувача успішно змінена на "${newRole}"`);
+        }
+        
+        // Обновляем список контактов для отображения актуальных данных
+        window.resetContactsUI();
+        window.fetchAndRenderContacts();
+        
+      } catch (error) {
+        console.error('Ошибка при изменении роли пользователя:', error);
+        if (typeof addFooterMessage === 'function') {
+          addFooterMessage('Помилка при зміні ролі користувача', 'error');
+        } else {
+          alert('Помилка при зміні ролі користувача');
+        }
+      }
+    });
+  }
+});
+
+// Экспортируем функции для использования в других модулях
+window.resetContactsUI = resetContactsUI;
+window.fetchAndRenderContacts = fetchAndRenderContacts;

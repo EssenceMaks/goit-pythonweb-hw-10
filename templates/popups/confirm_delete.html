@@ -1,16 +1,23 @@
-<div class="popup" id="popup-confirm-delete" style="display:none;">
-  <div class="popup-glass">
-    <div class="popup-header-gradient">
-      <span class="popup-header-gallery">Увага</span>
-    </div>
-    <div class="popup-avatar-diamond">
-      <span id="contact-avatar-letter">!</span>
-    </div>
-    <h3>Видалити контакт?</h3>
-    <p>Ви впевнені, що хочете видалити цей контакт?</p>
+<!-- Попап для подтверждения удаления -->
+<div id="popup-confirm-delete" class="popup">
+  <div class="popup-content">
+    <h2>Підтвердіть видалення</h2>
+    <p>Ви дійсно хочете видалити цей контакт?</p>
     <div class="popup-actions">
-      <button id="btn-confirm-delete">Видалити</button>
-      <button type="button" onclick="closePopup('popup-confirm-delete')">Скасувати</button>
+      <button id="btn-confirm-delete">Так</button>
+      <button onclick="closePopup('popup-confirm-delete')">Ні</button>
+    </div>
+  </div>
+</div>
+
+<!-- Попап для подтверждения смены роли пользователя -->
+<div id="popup-confirm-change-role" class="popup">
+  <div class="popup-content">
+    <h2>Підтвердіть зміну ролі</h2>
+    <p id="confirm-change-role-message">Ви дійсно хочете змінити роль користувача?</p>
+    <div class="popup-actions">
+      <button id="btn-confirm-change-role">Так</button>
+      <button onclick="closePopup('popup-confirm-change-role')">Ні</button>
     </div>
   </div>
 </div>

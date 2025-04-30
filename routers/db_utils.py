@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import inspect, text
 from database import engine, SessionLocal
@@ -7,8 +8,13 @@ from faker import Faker
 import psycopg2
 import os
 from urllib.parse import urlparse
+from typing import Optional
 
-router = APIRouter(prefix="/db", tags=["Database Utils"])
+# Создаем специальную схему OAuth2, которая не вызывает ошибку при отсутствии токена
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token", auto_error=False)
+
+# Удаляем префикс "/db", так как он уже указан в main.py при подключении роутера
+router = APIRouter(tags=["Database Utils"])
 faker = Faker()
 
 @router.get("/status")
@@ -43,14 +49,23 @@ def db_fill_fake(n: int = 10, request: Request = None):
             models.Base.metadata.create_all(bind=engine)
         from models import Contact, PhoneNumber, User
         import random
+        
         # Определяем user_id для контактов
         user_id = None
-        if request:
-            user = None
-            if hasattr(request, 'session'):
-                user = request.session.get('user')
-            if user and user.get('role') == 'superadmin':
-                # Найти или создать супер-админа
+        current_user = None
+        
+        # Получаем данные текущего пользователя из сессии
+        if request and hasattr(request, 'session'):
+            current_user = request.session.get('user')
+            
+        if current_user:
+            # Если это обычный пользователь или админ, создаем контакты для него
+            if current_user.get('id'):
+                user_id = current_user.get('id')
+                print(f"Создаем контакты для текущего пользователя ID={user_id}")
+                
+            # Если это суперадмин, можно создавать контакты от имени суперадмина
+            elif current_user.get('role') == 'superadmin':
                 superadmin = db.query(User).filter_by(username='Super Admin').first()
                 if not superadmin:
                     superadmin = User(
@@ -64,8 +79,10 @@ def db_fill_fake(n: int = 10, request: Request = None):
                     db.commit()
                     db.refresh(superadmin)
                 user_id = superadmin.id
+                print(f"Создаем контакты для суперадмина ID={user_id}")
+        
+        # Если не удалось определить пользователя, берем первого из базы (запасной вариант)
         if not user_id:
-            # Для обычного случая — взять первого пользователя
             user = db.query(User).first()
             if not user:
                 user = User(
@@ -79,6 +96,9 @@ def db_fill_fake(n: int = 10, request: Request = None):
                 db.commit()
                 db.refresh(user)
             user_id = user.id
+            print(f"Создаем контакты для первого пользователя ID={user_id} (запасной вариант)")
+            
+        # Создаем контакты с полученным user_id
         import logging
         for _ in range(n):
             first_name = faker.first_name() or "John"
@@ -115,23 +135,67 @@ def db_fill_fake(n: int = 10, request: Request = None):
         db.close()
 
 @router.post("/clear")
-def db_clear():
+def db_clear(request: Request = None):
     try:
         db = SessionLocal()
-        from models import Contact, PhoneNumber, Avatar, Photo
-        db.query(PhoneNumber).delete()
-        db.query(Avatar).delete()
-        db.query(Photo).delete()
-        db.query(Contact).delete()
+        from models import Contact, PhoneNumber, Avatar, Photo, User
+        
+        # Определяем для какого пользователя удаляем контакты
+        user_id = None
+        is_admin = False
+        
+        # Получаем информацию о текущем пользователе
+        if request and hasattr(request, 'session'):
+            current_user = request.session.get('user')
+            if current_user:
+                user_id = current_user.get('id')
+                role = current_user.get('role')
+                is_admin = role in ['admin', 'superadmin']
+                
+        # Если удаляет админ или суперадмин - удаляем все контакты
+        if is_admin:
+            print("Администратор удаляет все контакты")
+            db.query(PhoneNumber).delete()
+            db.query(Avatar).delete()
+            db.query(Photo).delete()
+            db.query(Contact).delete()
+            msg = "Всі контакти видалені адміністратором."
+        # Если это обычный пользователь - удаляем только его контакты
+        elif user_id:
+            print(f"Пользователь ID={user_id} удаляет свои контакты")
+            # Получаем все контакты пользователя
+            user_contacts = db.query(Contact).filter(Contact.user_id == user_id).all()
+            
+            # Получаем ID всех контактов пользователя
+            contact_ids = [contact.id for contact in user_contacts]
+            
+            if contact_ids:
+                # Удаляем связанные записи телефонов, аватаров и фото
+                db.query(PhoneNumber).filter(PhoneNumber.contact_id.in_(contact_ids)).delete(synchronize_session=False)
+                db.query(Avatar).filter(Avatar.contact_id.in_(contact_ids)).delete(synchronize_session=False)
+                db.query(Photo).filter(Photo.contact_id.in_(contact_ids)).delete(synchronize_session=False)
+                
+                # Удаляем сами контакты
+                db.query(Contact).filter(Contact.user_id == user_id).delete()
+            
+            msg = f"Всі ваші контакти видалені. Видалено {len(contact_ids)} контактів."
+        else:
+            # Если не удалось определить пользователя - не удаляем ничего
+            return {"status": "error", "message": "Необхідна авторизація для видалення контактів."}
+            
         db.commit()
-        return {"status": "ok", "message": "Всі контакти видалені."}
+        return {"status": "ok", "message": msg}
     except OperationalError:
         raise HTTPException(status_code=500, detail="Немає підключення до бази даних.")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
+# Обновляем endpoint, чтобы он работал даже без авторизации
 @router.get("/check-state")
-def db_check_state():
+def db_check_state(token: Optional[str] = Depends(optional_oauth2_scheme)):
     try:
         inspector = inspect(engine)
         tables = inspector.get_table_names()
@@ -139,11 +203,15 @@ def db_check_state():
             return {"status": "no_tables", "message": "База існує, контактів 0 (тобто немає, створіть контакти)"}
         # Проверяем количество контактов
         db = SessionLocal()
-        count = db.execute(text("SELECT COUNT(*) FROM contacts")).scalar()
-        db.close()
-        if count == 0:
-            return {"status": "no_contacts", "message": "База існує, контактів 0 (тобто немає, створіть контакти)"}
-        return {"status": "ok", "count": count}
+        try:
+            count = db.execute(text("SELECT COUNT(*) FROM contacts")).scalar()
+            if count == 0:
+                return {"status": "no_contacts", "message": "База існує, контактів 0 (тобто немає, створіть контакти)"}
+            return {"status": "ok", "count": count}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        finally:
+            db.close()
     except OperationalError:
         return {"status": "no_db", "message": "База не існує, створіть базу"}
 

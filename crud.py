@@ -4,6 +4,29 @@ from datetime import date, timedelta
 import models, schemas
 from sqlalchemy.exc import IntegrityError
 
+# USERS CRUD
+
+def get_user_by_username(db: Session, username: str):
+    return db.query(models.User).filter(models.User.username == username).first()
+
+def get_user_by_id(db: Session, user_id: int):
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def update_user_role(db: Session, user_id: int, role: str):
+    """Обновляет роль пользователя."""
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        return None
+    
+    # Проверка валидности роли
+    if role not in ['user', 'admin', 'superadmin']:
+        raise ValueError("Invalid role. Must be 'user', 'admin' or 'superadmin'")
+    
+    db_user.role = role
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
 # CONTACTS CRUD
 
 from sqlalchemy.orm import joinedload

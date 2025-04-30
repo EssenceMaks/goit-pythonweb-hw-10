@@ -169,6 +169,23 @@
   text-overflow: ellipsis;
 }
 
+/* Стили для кнопки смены роли пользователя */
+.change-role-btn {
+  margin-left: 10px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background-color: #4a5568;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.change-role-btn:hover {
+  background-color: #2d3748;
+}
+
 rt {
 color: #1f2235; 
 color: #2c2f3f; 

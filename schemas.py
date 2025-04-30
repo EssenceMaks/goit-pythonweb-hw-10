@@ -57,7 +57,7 @@ class ContactBase(BaseModel):
     extra_info: Optional[str] = None
 
 class ContactCreate(ContactBase):
-    user_id: Optional[int] = None
+    user_id: int
     phone_numbers: List[PhoneNumberCreate]
     group_ids: Optional[List[int]] = []
 

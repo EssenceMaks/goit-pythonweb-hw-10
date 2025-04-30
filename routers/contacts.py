@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import extract, and_, or_
-from typing import List
-import crud, models, schemas
-from database import SessionLocal
+from typing import List, Optional
 from datetime import date, timedelta
 import logging
+import crud, models, schemas
+from database import SessionLocal
+from models import Contact, User
+from schemas import Contact as ContactSchema, ContactCreate, ContactUpdate, UserWithContacts
+# Используем обновлённые функции авторизации
+from auth import get_current_user, check_contact_access
 
-router = APIRouter(prefix="/contacts", tags=["Contacts"])
-
+router = APIRouter(tags=["Contacts"])
 
 def get_db():
     db = SessionLocal()
@@ -17,59 +20,57 @@ def get_db():
     finally:
         db.close()
 
-from fastapi import Request
-
-@router.post("/", response_model=schemas.Contact)
-def create_contact(request: Request, contact: schemas.ContactCreate, db: Session = Depends(get_db)):
+@router.post("/", response_model=ContactSchema)
+async def create_contact(
+    request: Request,
+    contact: ContactCreate, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     logging.info(f"[ROUTER] create_contact RAW: {contact}")
-    user = request.session.get("user")
-    # Если супер-админ, разрешаем явно задавать user_id (например, для создания контактов для других пользователей)
-    if user and user.get("role") == "superadmin" and contact.user_id:
-        target_user_id = contact.user_id
-    elif user and user.get("role") in ("user", "admin"):
-        # Для обычных пользователей user_id только из сессии
-        target_user_id = user.get("id")
+    
+    # Для супер-админа и админа разрешаем создавать контакты для любого пользователя
+    if current_user.role in ["superadmin", "admin"]:
+        # Если явно указан user_id - используем его
+        if contact.user_id is not None:
+            target_user_id = contact.user_id
+        else:
+            # Если не указан - создаем для себя
+            target_user_id = current_user.id
+    # Для обычного пользователя создаем только для себя
     else:
-        raise HTTPException(status_code=403, detail="Нет доступа для создания контакта")
+        target_user_id = current_user.id
+    
     try:
         return crud.create_contact(db, target_user_id, contact)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-from fastapi import Request
-from typing import Optional
-
-from sqlalchemy.orm import joinedload
-
-@router.get("/grouped", response_model=List[schemas.UserWithContacts])
-def read_contacts_grouped(
+@router.get("/grouped", response_model=List[UserWithContacts])
+async def read_contacts_grouped(
     request: Request,
-    db: Session = Depends(get_db),
     search: str = Query(None),
-    sort: str = Query("asc")
+    sort: str = Query("asc"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    user = request.session.get("user")
-    import logging
-    if not user or "id" not in user or "role" not in user:
-        logging.error(f"/contacts/grouped: session user is invalid: {user}")
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
     # Определяем, кого возвращать
     query_users = db.query(models.User)
-    if user["role"] == "superadmin":
-        # Все пользователи
+    
+    if current_user.role == "superadmin":
+        # Все пользователи для суперадмина
         pass
-    elif user["role"] == "admin":
-        # Все пользователи и админы и супер-админ
+    elif current_user.role == "admin":
+        # Все пользователи для админа
         pass
     else:
-        logging.info(f"/contacts/grouped: filtering by user id {user['id']}")
-        query_users = query_users.filter(models.User.id == user["id"])
+        # Только свои контакты для обычного пользователя
+        query_users = query_users.filter(models.User.id == current_user.id)
 
     # Жадно грузим контакты
     query_users = query_users.options(joinedload(models.User.contacts))
     users = query_users.all()
-    logging.info(f"/contacts/grouped: found {len(users)} users for role {user['role']}")
+    logging.info(f"/contacts/grouped: found {len(users)} users for role {current_user.role}")
 
     # Фильтрация и сортировка контактов на уровне Python
     result = []
@@ -93,24 +94,26 @@ def read_contacts_grouped(
         ))
     return result
 
-@router.get("/", response_model=List[schemas.Contact])
-def read_contacts(
+@router.get("/", response_model=List[ContactSchema])
+async def read_contacts(
     request: Request,
     skip: int = 0,
     limit: int = 100,
     search: str = Query(None),
     sort: str = Query("asc"),
     user_id: Optional[int] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    user = request.session.get("user")
     query = db.query(models.Contact)
+    
     # Если не указан user_id и это супер-админ — показываем все контакты
     if user_id is not None:
         query = query.filter(models.Contact.user_id == user_id)
-    elif user and user.get("role") != "superadmin":
+    elif current_user.role != "superadmin":
         # Обычный пользователь — только свои контакты
-        query = query.filter(models.Contact.user_id == user.get("id"))
+        query = query.filter(models.Contact.user_id == current_user.id)
+    
     # superadmin без user_id — все контакты
     if search:
         search_pattern = f"%{search}%"
@@ -119,39 +122,65 @@ def read_contacts(
             (models.Contact.last_name.ilike(search_pattern)) |
             (models.Contact.email.ilike(search_pattern))
         )
+    
     if sort == "desc":
         query = query.order_by(models.Contact.first_name.desc())
     else:
         query = query.order_by(models.Contact.first_name.asc())
+    
     return query.offset(skip).limit(limit).all()
 
-@router.get("/search/", response_model=List[schemas.Contact])
-def search_contacts(query: str, db: Session = Depends(get_db)):
-    return crud.search_contacts(db, query)
+@router.get("/search/", response_model=List[ContactSchema])
+async def search_contacts(
+    request: Request,
+    query: str, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    results = crud.search_contacts(db, query)
+    # Фильтруем результаты по доступу пользователя
+    if current_user.role not in ["superadmin", "admin"]:
+        results = [contact for contact in results if contact.user_id == current_user.id]
+    return results
 
-@router.get("/birthdays/", response_model=List[schemas.Contact])
-def get_upcoming_birthdays(db: Session = Depends(get_db)):
-    return crud.contacts_with_upcoming_birthdays(db)
-
+@router.get("/birthdays/", response_model=List[ContactSchema])
+async def get_upcoming_birthdays(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    results = crud.contacts_with_upcoming_birthdays(db)
+    # Фильтруем результаты по доступу пользователя
+    if current_user.role not in ["superadmin", "admin"]:
+        results = [contact for contact in results if contact.user_id == current_user.id]
+    return results
 
 def birthday_md_expr():
     return extract('month', models.Contact.birthday) * 100 + extract('day', models.Contact.birthday)
 
-@router.get("/birthdays/next7days", response_model=List[schemas.Contact])
-def get_upcoming_birthdays_next7days(db: Session = Depends(get_db)):
+@router.get("/birthdays/next7days", response_model=List[ContactSchema])
+async def get_upcoming_birthdays_next7days(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     today = date.today()
     in_seven_days = today + timedelta(days=7)
     today_md = today.month * 100 + today.day
     in_seven_days_md = in_seven_days.month * 100 + in_seven_days.day
 
+    query = db.query(models.Contact).filter(models.Contact.birthday.isnot(None))
+    
+    # Ограничиваем доступ для обычных пользователей
+    if current_user.role not in ["superadmin", "admin"]:
+        query = query.filter(models.Contact.user_id == current_user.id)
+
     if today_md <= in_seven_days_md:
-        contacts = db.query(models.Contact).filter(
-            models.Contact.birthday.isnot(None),
+        contacts = query.filter(
             birthday_md_expr().between(today_md, in_seven_days_md)
         ).all()
     else:
-        contacts = db.query(models.Contact).filter(
-            models.Contact.birthday.isnot(None),
+        contacts = query.filter(
             or_(
                 birthday_md_expr().between(today_md, 1231),
                 birthday_md_expr().between(101, in_seven_days_md)
@@ -159,37 +188,93 @@ def get_upcoming_birthdays_next7days(db: Session = Depends(get_db)):
         ).all()
     return contacts
 
-@router.get("/birthdays/next12months", response_model=List[schemas.Contact])
-def get_birthdays_next_12_months(db: Session = Depends(get_db)):
+@router.get("/birthdays/next12months", response_model=List[ContactSchema])
+async def get_birthdays_next_12_months(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     today = date.today()
     today_md = today.month * 100 + today.day
-    contacts = db.query(models.Contact).filter(
+    
+    query = db.query(models.Contact).filter(
         models.Contact.birthday.isnot(None),
         birthday_md_expr() >= today_md
-    ).order_by(
+    )
+    
+    # Ограничиваем доступ для обычных пользователей
+    if current_user.role not in ["superadmin", "admin"]:
+        query = query.filter(models.Contact.user_id == current_user.id)
+        
+    contacts = query.order_by(
         extract('month', models.Contact.birthday),
         extract('day', models.Contact.birthday)
     ).all()
+    
     return contacts
 
-@router.get("/{contact_id}", response_model=schemas.Contact)
-def read_contact(contact_id: int, db: Session = Depends(get_db)):
+@router.get("/{contact_id}", response_model=ContactSchema)
+async def read_contact(
+    request: Request,
+    contact_id: int, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     db_contact = crud.get_contact(db, contact_id)
     if db_contact is None:
         raise HTTPException(status_code=404, detail="Contact not found")
+        
+    # Проверка доступа к контакту
+    if current_user.role not in ["superadmin", "admin"] and db_contact.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to access this contact"
+        )
+        
     return db_contact
 
-@router.put("/{contact_id}", response_model=schemas.Contact)
-def update_contact(contact_id: int, contact: schemas.ContactUpdate, db: Session = Depends(get_db)):
+@router.put("/{contact_id}", response_model=ContactSchema)
+async def update_contact(
+    request: Request,
+    contact_id: int, 
+    contact: ContactUpdate, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Проверяем существование контакта
+    existing_contact = crud.get_contact(db, contact_id)
+    if not existing_contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+        
+    # Проверяем доступ к контакту
+    if current_user.role not in ["superadmin", "admin"] and existing_contact.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to update this contact"
+        )
+    
     logging.info(f"[ROUTER] update_contact RAW: {contact}")
     db_contact = crud.update_contact(db, contact_id, contact)
-    if db_contact is None:
-        raise HTTPException(status_code=404, detail="Contact not found")
     return db_contact
 
-@router.delete("/{contact_id}", response_model=schemas.Contact)
-def delete_contact(contact_id: int, db: Session = Depends(get_db)):
-    db_contact = crud.delete_contact(db, contact_id)
-    if db_contact is None:
+@router.delete("/{contact_id}", response_model=ContactSchema)
+async def delete_contact(
+    request: Request,
+    contact_id: int, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Проверяем существование контакта
+    existing_contact = crud.get_contact(db, contact_id)
+    if not existing_contact:
         raise HTTPException(status_code=404, detail="Contact not found")
+        
+    # Проверяем доступ к контакту
+    if current_user.role not in ["superadmin", "admin"] and existing_contact.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to delete this contact"
+        )
+        
+    db_contact = crud.delete_contact(db, contact_id)
     return db_contact

@@ -32,21 +32,21 @@ function closePopup(id) {
 }
 
 // Динамічні телефони
-const phonesList = document.getElementById('phones-list');
-const addPhoneBtn = document.getElementById('add-phone-btn'); // Тільки одне оголошення!
+const phonesListElement = document.getElementById('phones-list');
+const phoneAddBtn = document.getElementById('add-phone-btn'); // Переименовали переменную, чтобы избежать конфликта
 const phoneTypes = ['Мобільний', 'Домашній', 'Робочий', 'Інший'];
 function addPhoneRow(value = '', type = 'Мобільний') {
-  if (!phonesList) return;
-  const idx = phonesList.children.length;
+  if (!phonesListElement) return;
+  const idx = phonesListElement.children.length;
   const row = document.createElement('div');
   row.className = 'phone-row';
   // Виправлений pattern для всіх браузерів
   row.innerHTML = `<div class='phone-input-wrap form-field'><input class='phone-input' type='tel' pattern='[0-9()+#* -]{2,31}' minlength='2' maxlength='31' inputmode='tel' value='${value}' placeholder='номер телефону' required><div class='phone-error field-error' data-field='phone_${idx}'></div></div><select class='phone-type'>${phoneTypes.map(t => `<option${t===type?' selected':''}>${t}</option>`).join('')}</select><button type='button' class='remove-phone-btn' title='Видалити'>✕</button>`;
   row.querySelector('.remove-phone-btn').onclick = () => row.remove();
-  phonesList.appendChild(row);
+  phonesListElement.appendChild(row);
 }
-if (addPhoneBtn) {
-  addPhoneBtn.onclick = () => addPhoneRow();
+if (phoneAddBtn) { // Используем переименованную переменную
+  phoneAddBtn.onclick = () => addPhoneRow();
 }
 
 // Кастомна inline-валідація для телефону та інших полів
@@ -143,6 +143,32 @@ if (firstNameInput && avatarLetter) {
 }
 
 // === Обробка помилок форми контакту ===
+
+// Отримання інформації про користувача з сессії
+function getUserInfo() {
+    // Спочатку пробуємо отримати з sessionStorage
+    const session = JSON.parse(sessionStorage.getItem('user') || '{}');
+    if (Object.keys(session).length > 0) return session;
+    
+    // Якщо не знайдено в sessionStorage, пробуємо отримати з cookie
+    const cookie = document.cookie.match(/user=([^;]*)/);
+    if (cookie) {
+        const user = JSON.parse(decodeURIComponent(cookie[1]));
+        if (Object.keys(user).length > 0) {
+            // Зберігаємо в sessionStorage для подальшого використання
+            sessionStorage.setItem('user', JSON.stringify(user));
+            return user;
+        }
+    }
+    return null;
+}
+
+// Отримання user_id з сессії
+function getUserId() {
+    const user = getUserInfo();
+    return user ? user.id : null;
+}
+
 function showFieldError(field, message) {
   const errorDiv = document.querySelector('.field-error[data-field="' + field + '"]');
   if (errorDiv) {
@@ -200,6 +226,32 @@ if (contactForm) {
     const payload = Object.fromEntries(formData.entries());
     payload.phone_numbers = phones;
     payload.groups = groups;
+    
+    // Додаємо user_id та перевіряємо роль користувача
+    const user = getUserInfo();
+    if (!user) {
+        showFieldError('form', 'Необхідна авторизація');
+        return;
+    }
+    
+    // Проверяем наличие id
+    if (!user.id) {
+        showFieldError('form', 'Сессия не содержит user_id');
+        return;
+    }
+    
+    // Для супер-адміна та адміна дозволяємо явно задавати user_id
+    if (user.role === 'superadmin' || user.role === 'admin') {
+        // Якщо не вказано user_id - створюємо для себе
+        // Исправление: убираем обращение к несуществующей переменной contact
+        payload.user_id = user.id;
+    } else if (user.role === 'user') {
+        // Для звичайного користувача використовуємо user_id з сессії
+        payload.user_id = user.id;
+    } else {
+        showFieldError('form', 'Немає доступу для створення контакта');
+        return;
+    }
     try {
       const resp = await fetch(contactForm.action || window.location.pathname, {
         method: contactForm.method || 'POST',

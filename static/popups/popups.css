@@ -7,6 +7,9 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.7);
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease-out;
 }
 .popup[style*="block"] {
   display: flex !important;
@@ -227,4 +230,68 @@
 }
 input:invalid, textarea:invalid {
   border-color: #d32f2f;
+}
+
+.popup-content {
+  position: relative;
+  background: rgba(35, 41, 50, 0.97);
+  margin: 50px auto;
+  padding: 30px;
+  width: 80%;
+  max-width: 500px;
+  border-radius: 16px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  color: #e2e7f0;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  animation: popDown 0.3s ease-out;
+  max-height: calc(100vh - 100px); /* Ограничение высоты для предотвращения выхода за экран */
+  overflow-y: auto; /* Добавляем прокрутку, если содержимое слишком длинное */
+}
+
+/* Специальные стили для попапа подтверждения изменения роли */
+#popup-confirm-change-role .popup-content {
+  text-align: center;
+  max-width: 450px;
+}
+
+#popup-confirm-change-role .popup-actions {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+/* Общие стили для кнопок в попапах действий */
+.popup-actions button {
+  padding: 8px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.popup-actions button:first-child {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.popup-actions button:last-child {
+  background-color: #64748b;
+  color: white;
+}
+
+.popup-actions button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popDown {
+  from { transform: translateY(-30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
