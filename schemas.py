@@ -57,6 +57,7 @@ class ContactBase(BaseModel):
     extra_info: Optional[str] = None
 
 class ContactCreate(ContactBase):
+    user_id: Optional[int] = None
     phone_numbers: List[PhoneNumberCreate]
     group_ids: Optional[List[int]] = []
 
@@ -70,5 +71,14 @@ class Contact(ContactBase):
     avatars: List[Avatar] = []
     photos: List[Photo] = []
     groups: List[Group] = []
+    class Config:
+        orm_mode = True
+
+class UserWithContacts(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+    role: str
+    contacts: List[Contact] = []
     class Config:
         orm_mode = True

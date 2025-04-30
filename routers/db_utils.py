@@ -35,35 +35,72 @@ def db_init():
         raise HTTPException(status_code=500, detail="Немає підключення до бази даних.")
 
 @router.post("/fill-fake")
-def db_fill_fake(n: int = 10):
+def db_fill_fake(n: int = 10, request: Request = None):
     try:
         db = SessionLocal()
-        # Перевіримо, чи є таблиці
         inspector = inspect(engine)
         if not inspector.get_table_names():
             models.Base.metadata.create_all(bind=engine)
-        # Заповнимо фейковими контактами
-        from models import Contact, PhoneNumber
+        from models import Contact, PhoneNumber, User
         import random
+        # Определяем user_id для контактов
+        user_id = None
+        if request:
+            user = None
+            if hasattr(request, 'session'):
+                user = request.session.get('user')
+            if user and user.get('role') == 'superadmin':
+                # Найти или создать супер-админа
+                superadmin = db.query(User).filter_by(username='Super Admin').first()
+                if not superadmin:
+                    superadmin = User(
+                        username='Super Admin',
+                        email='superadmin@example.com',
+                        hashed_password='not_used',
+                        role='superadmin',
+                        is_verified=True
+                    )
+                    db.add(superadmin)
+                    db.commit()
+                    db.refresh(superadmin)
+                user_id = superadmin.id
+        if not user_id:
+            # Для обычного случая — взять первого пользователя
+            user = db.query(User).first()
+            if not user:
+                user = User(
+                    username='testuser',
+                    email='testuser@example.com',
+                    hashed_password='not_used',
+                    role='user',
+                    is_verified=True
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+            user_id = user.id
+        import logging
         for _ in range(n):
+            first_name = faker.first_name() or "John"
+            last_name = faker.last_name() or "Doe"
+            email = faker.unique.email() or f"user{random.randint(1000,9999)}@example.com"
             contact = Contact(
-                first_name=faker.first_name(),
-                last_name=faker.last_name(),
-                email=faker.unique.email(),
+                user_id=user_id,
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
                 birthday=faker.date_of_birth(minimum_age=18, maximum_age=80),
                 extra_info=faker.sentence()
             )
             db.add(contact)
-            db.flush()  # Получить id
-            # Добавим 1-3 номера
+            logging.info(f"Fake contact: {first_name} {last_name} {email}")
+            db.flush()
             for _ in range(random.randint(1, 3)):
-                # Генерируем валидный номер: только цифры, +, -, (, ), пробелы (как в html pattern)
-                raw_number = faker.phone_number()
                 import re
+                raw_number = faker.phone_number()
                 cleaned_number = re.sub(r'[^0-9\-+() ]', '', raw_number)
-                # Минимальная длина валидного номера (например, 7 символов)
                 if len(cleaned_number) < 7:
-                    cleaned_number = '+380' + faker.msisdn()[:9]  # Украинский формат, если вдруг короткий
+                    cleaned_number = '+380' + faker.msisdn()[:9]
                 pn = PhoneNumber(
                     number=cleaned_number,
                     label=random.choice(["home", "work", "mobile"]),
@@ -71,7 +108,7 @@ def db_fill_fake(n: int = 10):
                 )
                 db.add(pn)
         db.commit()
-        return {"status": "ok", "message": f"Додано {n} випадкових контактів."}
+        return {"status": "ok", "message": f"Додано {n} випадкових контактів для user_id={user_id}."}
     except OperationalError:
         raise HTTPException(status_code=500, detail="Немає підключення до бази даних.")
     finally:

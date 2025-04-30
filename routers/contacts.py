@@ -17,23 +17,101 @@ def get_db():
     finally:
         db.close()
 
+from fastapi import Request
+
 @router.post("/", response_model=schemas.Contact)
-def create_contact(contact: schemas.ContactCreate, db: Session = Depends(get_db)):
+def create_contact(request: Request, contact: schemas.ContactCreate, db: Session = Depends(get_db)):
     logging.info(f"[ROUTER] create_contact RAW: {contact}")
+    user = request.session.get("user")
+    # Если супер-админ, разрешаем явно задавать user_id (например, для создания контактов для других пользователей)
+    if user and user.get("role") == "superadmin" and contact.user_id:
+        target_user_id = contact.user_id
+    elif user and user.get("role") in ("user", "admin"):
+        # Для обычных пользователей user_id только из сессии
+        target_user_id = user.get("id")
+    else:
+        raise HTTPException(status_code=403, detail="Нет доступа для создания контакта")
     try:
-        return crud.create_contact(db, contact)
+        return crud.create_contact(db, target_user_id, contact)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+from fastapi import Request
+from typing import Optional
+
+from sqlalchemy.orm import joinedload
+
+@router.get("/grouped", response_model=List[schemas.UserWithContacts])
+def read_contacts_grouped(
+    request: Request,
+    db: Session = Depends(get_db),
+    search: str = Query(None),
+    sort: str = Query("asc")
+):
+    user = request.session.get("user")
+    import logging
+    if not user or "id" not in user or "role" not in user:
+        logging.error(f"/contacts/grouped: session user is invalid: {user}")
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Определяем, кого возвращать
+    query_users = db.query(models.User)
+    if user["role"] == "superadmin":
+        # Все пользователи
+        pass
+    elif user["role"] == "admin":
+        # Все пользователи и админы и супер-админ
+        pass
+    else:
+        logging.info(f"/contacts/grouped: filtering by user id {user['id']}")
+        query_users = query_users.filter(models.User.id == user["id"])
+
+    # Жадно грузим контакты
+    query_users = query_users.options(joinedload(models.User.contacts))
+    users = query_users.all()
+    logging.info(f"/contacts/grouped: found {len(users)} users for role {user['role']}")
+
+    # Фильтрация и сортировка контактов на уровне Python
+    result = []
+    for u in users:
+        contacts = u.contacts
+        if search:
+            search_lc = search.lower()
+            contacts = [c for c in contacts if search_lc in (c.first_name or '').lower() or search_lc in (c.last_name or '').lower() or search_lc in (c.email or '').lower()]
+        if sort == "desc":
+            contacts = sorted(contacts, key=lambda c: (c.first_name or '').lower(), reverse=True)
+        else:
+            contacts = sorted(contacts, key=lambda c: (c.first_name or '').lower())
+        # Сериализуем ORM-объекты через pydantic
+        contacts_data = [schemas.Contact.model_validate(c, from_attributes=True) for c in contacts]
+        result.append(schemas.UserWithContacts(
+            id=u.id,
+            username=u.username,
+            email=u.email,
+            role=u.role,
+            contacts=contacts_data
+        ))
+    return result
+
 @router.get("/", response_model=List[schemas.Contact])
 def read_contacts(
+    request: Request,
     skip: int = 0,
     limit: int = 100,
     search: str = Query(None),
     sort: str = Query("asc"),
+    user_id: Optional[int] = Query(None),
     db: Session = Depends(get_db)
 ):
+    user = request.session.get("user")
     query = db.query(models.Contact)
+    # Если не указан user_id и это супер-админ — показываем все контакты
+    if user_id is not None:
+        query = query.filter(models.Contact.user_id == user_id)
+    elif user and user.get("role") != "superadmin":
+        # Обычный пользователь — только свои контакты
+        query = query.filter(models.Contact.user_id == user.get("id"))
+    # superadmin без user_id — все контакты
     if search:
         search_pattern = f"%{search}%"
         query = query.filter(

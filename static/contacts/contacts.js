@@ -227,19 +227,38 @@ async function fetchContacts() {
   const params = [];
   if (search) params.push('search=' + encodeURIComponent(search));
   if (alphaSortDir) params.push('sort=' + encodeURIComponent(alphaSortDir));
-  params.push('limit=100');
-  const url = '/contacts' + (params.length ? '?' + params.join('&') : '');
-  try {
-    const resp = await fetch(url);
-    const data = await resp.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
+  // Для обычных пользователей — старый endpoint
+  if (window.userRole === 'user') {
+    params.push('limit=100');
+    const userId = window.selectedUserId;
+    if (userId) params.push('user_id=' + encodeURIComponent(userId));
+    const url = '/contacts' + (params.length ? '?' + params.join('&') : '');
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  } else {
+    // Для админа и супер-админа — новый endpoint
+    const url = '/contacts/grouped' + (params.length ? '?' + params.join('&') : '');
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
   }
 }
 
+
 async function fetchContact(id) {
-  const resp = await fetch(`/contacts/${id}`);
+  const userId = window.selectedUserId || document.body.dataset.userId;
+  let url = `/contacts/${id}`;
+  if (userId) url += `?user_id=${encodeURIComponent(userId)}`;
+  const resp = await fetch(url);
   return await resp.json();
 }
 
@@ -247,15 +266,34 @@ async function renderContacts() {
   if (birthdayMode) return; // Не рендерить обычные контакты, если активен шаблон дней рождений
   const list = document.getElementById('contacts-list');
   list.innerHTML = '<div>Завантаження...</div>';
-  // Используем только кэш
   const data = contactsCache;
 
+  // Для админа и супер-админа: data — массив пользователей с их контактами
+  if (window.userRole === 'admin' || window.userRole === 'superadmin') {
+    let html = '';
+    if (!Array.isArray(data) || !data.length) {
+      html = '<div>Контакти не знайдено</div>';
+    } else {
+      data.forEach(user => {
+        html += `<div class="user-contacts-section">
+          <div class="user-header">
+            <b>${user.username}</b> <span style="color:#b6d5fa">(${user.email}, ${user.role})</span>
+          </div>
+          <div class="user-contacts-list">
+            ${Array.isArray(user.contacts) && user.contacts.length ? user.contacts.map(contact => renderContactTile(contact, contactsViewMode)).join('') : '<div style="margin-left:1em;opacity:0.7">— Контактів немає —</div>'}
+          </div>
+        </div><hr style="margin:14px 0;opacity:0.2">`;
+      });
+    }
+    list.innerHTML = html;
+    return;
+  }
+
+  // Для обычных пользователей — как раньше
   let tilesHtml;
   if (contactsViewMode === 4) {
-    // В режиме 4 — показываем все expanded без лишних fetch
     tilesHtml = data.map(contact => renderFullContactTile(contact));
   } else {
-    // Для всех других режимов: если expandedContactId — раскрыть только его
     tilesHtml = await Promise.all(data.map(async contact => {
       if (expandedContactId && contact.id.toString() === expandedContactId) {
         const fullContact = await fetchContact(contact.id);
@@ -267,6 +305,7 @@ async function renderContacts() {
   }
   list.innerHTML = tilesHtml.join('');
 }
+
 
 // --- Обновление api-link-block ---
 function updateApiLink(url) {
@@ -574,7 +613,10 @@ async function openEditContactPopup(id) {
   openPopup('popup-create-contact');
   // Чекаємо 100ms, щоб DOM точно був готовий
   setTimeout(async () => {
-    const resp = await fetch(`/contacts/${id}`);
+    const userId = window.selectedUserId || document.body.dataset.userId;
+    let url = `/contacts/${id}`;
+    if (userId) url += `?user_id=${encodeURIComponent(userId)}`;
+    const resp = await fetch(url);
     if (resp.ok) {
       const contact = await resp.json();
       fillContactForm(contact);
@@ -774,6 +816,10 @@ if (createForm) {
       url = `/contacts/${editId}`;
       method = 'PUT';
     }
+    const userId = window.selectedUserId || document.body.dataset.userId;
+    if (userId) {
+      data.user_id = userId;
+    }
     try {
       const resp = await fetch(url, {
         method,
@@ -819,11 +865,26 @@ if (btnDelete) {
     const id = btnDelete.getAttribute('data-id');
     if (!id) return;
     try {
-      const resp = await fetch(`/contacts/${id}`, { method: 'DELETE' });
+      // Add user_id to query param for delete
+      const userId = window.selectedUserId;
+      let url = `/contacts/${id}`;
+      if (userId) url += `?user_id=${encodeURIComponent(userId)}`;
+      const resp = await fetch(url, { method: 'DELETE' });
       if (resp.ok) {
-        closePopup('popup-confirm-delete');
+         closePopup('popup-confirm-delete');
         window.resetContactsUI();
         window.fetchAndRenderContacts();
+        // Получить новое количество контактов и вывести сообщение в футер
+        try {
+          const respCount = await fetch('/db/check-state');
+          if (respCount.ok) {
+            const data = await respCount.json();
+            if (typeof addFooterMessage === 'function') {
+              addFooterMessage(`Контакт удалён. Теперь в базе ${data.count} контактов.`, 'success');
+            }
+          }
+        } catch {}
+
       } else {
         alert('Помилка видалення');
       }

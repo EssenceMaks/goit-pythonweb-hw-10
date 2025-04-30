@@ -1,14 +1,19 @@
 <div class="menu">
-  <h2>Меню</h2>
+  <script>
+    window.selectedUserId = "{{ user.id }}";
+  </script>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <span style="font-weight:bold;font-size:1.1em;">{{ user.username }}</span>
+    <a href="/settings" style="color:#ffb347;">налаштування</a>
+  </div>
   <button id="btn-create-contact">Створити контакт</button>
-
-  <div style="flex:1"></div>
-
   <button id="btn-fill">Створити випадкові контакти</button>
   <button id="btn-clear">Видалити всі контакти</button>
-
-  <div style="height: 32px;"></div>
-
-  <button id="btn-create-db">Створити шаблон бази</button>
-  <button id="btn-drop-db" style="background:#fee2e2;color:#991b1b;">Видалити базу</button>
+  {% if user.role == 'superadmin' %}
+    <button id="btn-create-db">Створити шаблон бази</button>
+    <button id="btn-drop-db">Видалити базу</button>
+  {% endif %}
+  <div style="margin-top:24px;">
+    <a href="/logout" style="color:#ff5e62;font-weight:bold;">Вийти</a>
+  </div>
 </div>

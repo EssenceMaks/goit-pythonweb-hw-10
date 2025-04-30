@@ -21,11 +21,12 @@ def get_contact(db: Session, contact_id: int):
         .first()
     )
 
-def get_contacts(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Contact).offset(skip).limit(limit).all()
+def get_contacts(db: Session, user_id: int, skip: int = 0, limit: int = 100):
+    return db.query(models.Contact).filter(models.Contact.user_id == user_id).offset(skip).limit(limit).all()
 
-def create_contact(db: Session, contact: schemas.ContactCreate):
+def create_contact(db: Session, user_id: int, contact: schemas.ContactCreate):
     db_contact = models.Contact(
+        user_id=user_id,
         first_name=contact.first_name,
         last_name=contact.last_name,
         email=contact.email,

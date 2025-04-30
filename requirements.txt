@@ -1,7 +1,16 @@
 fastapi
 uvicorn
 sqlalchemy
-psycopg2
+psycopg2-binary
 pydantic
 python-dotenv
 faker
+itsdangerous
+email-validator
+python-jose
+passlib
+python-multipart
+python-socketio
+python-redis
+jinja2
+aiosmtplib

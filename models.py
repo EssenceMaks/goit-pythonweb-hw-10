@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, Table, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from database import Base
 
 # Association table for many-to-many Contact <-> Group
@@ -9,15 +10,62 @@ contact_group = Table(
     Column('group_id', Integer, ForeignKey('groups.id'), primary_key=True)
 )
 
+from sqlalchemy import Boolean
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, default='user')  # 'admin' or 'user'
+    is_verified = Column(Boolean, default=False)
+    verification_code = Column(String, nullable=True)
+
+    avatars = relationship('UserAvatar', back_populates='user', cascade="all, delete-orphan")
+    contacts = relationship('Contact', back_populates='user', cascade="all, delete-orphan")
+
+class UserAvatar(Base):
+    __tablename__ = 'user_avatars'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    file_path = Column(String, nullable=False)
+    is_approved = Column(Integer, default=0)  # 0 - not approved, 1 - approved
+    is_main = Column(Integer, default=0)      # 0 - not main, 1 - main
+    request_type = Column(String, default='upload')  # 'upload' or 'set_main'
+    request_status = Column(String, default='pending')  # 'pending', 'approved', 'rejected'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship('User', back_populates='avatars')
+    messages = relationship('AvatarRequestMessage', back_populates='avatar', cascade="all, delete-orphan")
+
+class AvatarRequestMessage(Base):
+    __tablename__ = 'avatar_request_messages'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)  # кто отправил запрос
+    avatar_id = Column(Integer, ForeignKey('user_avatars.id'), nullable=False)
+    message = Column(Text, nullable=True)
+    status = Column(String, default='pending')  # 'pending', 'approved', 'rejected'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # кто подтвердил (админ)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    avatar = relationship('UserAvatar', back_populates='messages')
+    user = relationship('User', foreign_keys=[user_id])
+    reviewer = relationship('User', foreign_keys=[reviewed_by])
+
 class Contact(Base):
     __tablename__ = 'contacts'
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String)
-    email = Column(String, nullable=False, unique=True)
+    email = Column(String, nullable=False)
     birthday = Column(Date, nullable=False)
     extra_info = Column(Text)
 
+    user = relationship('User', back_populates='contacts')
     phone_numbers = relationship('PhoneNumber', back_populates='contact', cascade="all, delete-orphan")
     avatars = relationship('Avatar', back_populates='contact', cascade="all, delete-orphan")
     photos = relationship('Photo', back_populates='contact', cascade="all, delete-orphan")
@@ -42,9 +90,9 @@ class Avatar(Base):
     __tablename__ = 'avatars'
     id = Column(Integer, primary_key=True, index=True)
     contact_id = Column(Integer, ForeignKey('contacts.id'))
-    file_path = Column(String)  # Placeholder for future file storage
-    is_main = Column(Integer, default=0)  # 1 if main, 0 otherwise
-    show = Column(Integer, default=1)  # 1 if shown, 0 otherwise
+    file_path = Column(String)  # путь к файлу аватарки контакта
+    is_main = Column(Integer, default=0)  # 1 если основная, 0 иначе
+    show = Column(Integer, default=1)  # 1 если показывать, 0 иначе
 
     contact = relationship('Contact', back_populates='avatars')
 
