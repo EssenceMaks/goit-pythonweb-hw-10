@@ -339,11 +339,16 @@ async def switch_account(
         if not superadmin_username:
             return RedirectResponse(url="/login", status_code=303)
         
+        # Обеспечиваем валидный email с символом @
+        superadmin_email = os.getenv("SUPERADMIN_EMAIL", superadmin_username)
+        if '@' not in superadmin_email:
+            superadmin_email = 'superadmin@example.com'
+        
         # Сохраняем данные суперадмина в сессии
         request.session["user"] = {
             "id": -1,
             "username": superadmin_username,
-            "email": superadmin_username,
+            "email": superadmin_email,
             "role": "superadmin"
         }
         
@@ -354,7 +359,7 @@ async def switch_account(
                 "sub": superadmin_username, 
                 "id": -1, 
                 "role": "superadmin",
-                "email": superadmin_username
+                "email": superadmin_email
             }, 
             expires_delta=access_token_expires
         )

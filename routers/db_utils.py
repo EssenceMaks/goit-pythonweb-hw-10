@@ -59,27 +59,41 @@ def db_fill_fake(n: int = 10, request: Request = None):
             current_user = request.session.get('user')
             
         if current_user:
-            # Если это обычный пользователь или админ, создаем контакты для него
-            if current_user.get('id'):
-                user_id = current_user.get('id')
-                print(f"Создаем контакты для текущего пользователя ID={user_id}")
+            # Проверяем, является ли пользователь суперадмином с ID = -1
+            if current_user.get('role') == 'superadmin' and current_user.get('id') == -1:
+                print("Обнаружен суперадмин с ID = -1, создаем или получаем его запись в БД")
                 
-            # Если это суперадмин, можно создавать контакты от имени суперадмина
-            elif current_user.get('role') == 'superadmin':
-                superadmin = db.query(User).filter_by(username='Super Admin').first()
+                # Ищем или создаем пользователя-суперадмина в базе данных
+                superadmin = db.query(User).filter_by(role='superadmin').first()
                 if not superadmin:
+                    # Создаем запись суперадмина в таблице users
+                    superadmin_username = current_user.get('username', 'superadmin')
+                    # Обязательно используем валидный email с символом @
+                    superadmin_email = current_user.get('email')
+                    
+                    # Проверяем наличие @ в email, иначе используем дефолтный с @
+                    if not superadmin_email or '@' not in superadmin_email:
+                        superadmin_email = 'superadmin@example.com'
+                    
                     superadmin = User(
-                        username='Super Admin',
-                        email='superadmin@example.com',
-                        hashed_password='not_used',
+                        username=superadmin_username,
+                        email=superadmin_email,
+                        hashed_password='$2b$12$gvvnkVD.WCFqTgWZr0BMiOQ/HwgKGw0Mb9/PIvJ8uJ8KsNV7AqgG6',  # хешированный пароль (не для входа)
                         role='superadmin',
                         is_verified=True
                     )
                     db.add(superadmin)
                     db.commit()
                     db.refresh(superadmin)
+                
+                # Используем ID реального пользователя-суперадмина из БД
                 user_id = superadmin.id
-                print(f"Создаем контакты для суперадмина ID={user_id}")
+                print(f"Создаем контакты для суперадмина с ID из БД: {user_id}")
+            
+            # Обычные пользователи и админы
+            elif current_user.get('id') and current_user.get('id') != -1:
+                user_id = current_user.get('id')
+                print(f"Создаем контакты для пользователя ID={user_id}")
         
         # Если не удалось определить пользователя, берем первого из базы (запасной вариант)
         if not user_id:
@@ -88,7 +102,7 @@ def db_fill_fake(n: int = 10, request: Request = None):
                 user = User(
                     username='testuser',
                     email='testuser@example.com',
-                    hashed_password='not_used',
+                    hashed_password='$2b$12$gvvnkVD.WCFqTgWZr0BMiOQ/HwgKGw0Mb9/PIvJ8uJ8KsNV7AqgG6',
                     role='user',
                     is_verified=True
                 )
@@ -131,6 +145,10 @@ def db_fill_fake(n: int = 10, request: Request = None):
         return {"status": "ok", "message": f"Додано {n} випадкових контактів для user_id={user_id}."}
     except OperationalError:
         raise HTTPException(status_code=500, detail="Немає підключення до бази даних.")
+    except Exception as e:
+        db.rollback()
+        print(f"Ошибка при создании контактов: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
@@ -148,19 +166,31 @@ def db_clear(request: Request = None):
         if request and hasattr(request, 'session'):
             current_user = request.session.get('user')
             if current_user:
-                user_id = current_user.get('id')
                 role = current_user.get('role')
                 is_admin = role in ['admin', 'superadmin']
                 
+                # Проверка на суперадмина с ID = -1
+                if role == 'superadmin' and current_user.get('id') == -1:
+                    print("Обнаружен суперадмин с ID = -1")
+                    # Ищем суперадмина в базе данных
+                    superadmin = db.query(User).filter_by(role='superadmin').first()
+                    if superadmin:
+                        user_id = superadmin.id
+                        print(f"Найден суперадмин с реальным ID={user_id}")
+                    else:
+                        print("Суперадмин не найден в базе данных")
+                else:
+                    user_id = current_user.get('id')
+                
         # Если удаляет админ или суперадмин - удаляем все контакты
         if is_admin:
-            print("Администратор удаляет все контакты")
+            print(f"Администратор (ID={user_id}, role={role}) удаляет все контакты")
             db.query(PhoneNumber).delete()
             db.query(Avatar).delete()
             db.query(Photo).delete()
             db.query(Contact).delete()
             msg = "Всі контакти видалені адміністратором."
-        # Если это обычный пользователь - удаляем только его контакты
+        # Если это обычный пользователь или суперадмин удаляет свои контакты
         elif user_id:
             print(f"Пользователь ID={user_id} удаляет свои контакты")
             # Получаем все контакты пользователя
@@ -189,6 +219,7 @@ def db_clear(request: Request = None):
         raise HTTPException(status_code=500, detail="Немає підключення до бази даних.")
     except Exception as e:
         db.rollback()
+        print(f"Ошибка при удалении контактов: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()

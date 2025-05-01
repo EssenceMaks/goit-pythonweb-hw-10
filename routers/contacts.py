@@ -83,15 +83,33 @@ async def read_contacts_grouped(
             contacts = sorted(contacts, key=lambda c: (c.first_name or '').lower(), reverse=True)
         else:
             contacts = sorted(contacts, key=lambda c: (c.first_name or '').lower())
+        
+        # Проверяем и исправляем email перед сериализацией
+        email = u.email
+        if not email or '@' not in email:
+            # Если email некорректный, создаем валидный email на основе имени пользователя
+            email = f"{u.username.replace(' ', '.')}@example.com"
+            
         # Сериализуем ORM-объекты через pydantic
         contacts_data = [schemas.Contact.model_validate(c, from_attributes=True) for c in contacts]
-        result.append(schemas.UserWithContacts(
-            id=u.id,
-            username=u.username,
-            email=u.email,
-            role=u.role,
-            contacts=contacts_data
-        ))
+        try:
+            result.append(schemas.UserWithContacts(
+                id=u.id,
+                username=u.username,
+                email=email,
+                role=u.role or "user",
+                contacts=contacts_data
+            ))
+        except Exception as e:
+            logging.error(f"Ошибка при создании UserWithContacts для пользователя {u.id}: {str(e)}")
+            # Добавляем с пустым списком контактов вместо полного исключения
+            result.append(schemas.UserWithContacts(
+                id=u.id,
+                username=u.username,
+                email=email,
+                role=u.role or "user",
+                contacts=[]
+            ))
     return result
 
 @router.get("/grouped/birthdays", response_model=List[UserWithBirthdays])
@@ -152,14 +170,36 @@ async def read_birthdays_grouped_by_users(
         
         # Не добавляем пользователей без контактов с днями рождения
         if next7_contacts or next12_contacts:
-            result.append(schemas.UserWithBirthdays(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                role=user.role,
-                contacts_next7days=[schemas.Contact.model_validate(c, from_attributes=True) for c in next7_contacts],
-                contacts_next12months=[schemas.Contact.model_validate(c, from_attributes=True) for c in next12_contacts]
-            ))
+            # Проверяем и исправляем email перед сериализацией
+            email = user.email
+            if not email or '@' not in email:
+                # Если email некорректный, создаем валидный email на основе имени пользователя
+                email = f"{user.username.replace(' ', '.')}@example.com"
+            
+            try:
+                # Сериализуем контакты
+                next7_data = [schemas.Contact.model_validate(c, from_attributes=True) for c in next7_contacts]
+                next12_data = [schemas.Contact.model_validate(c, from_attributes=True) for c in next12_contacts]
+                
+                result.append(schemas.UserWithBirthdays(
+                    id=user.id,
+                    username=user.username,
+                    email=email,  # Используем исправленный email
+                    role=user.role or "user",
+                    contacts_next7days=next7_data,
+                    contacts_next12months=next12_data
+                ))
+            except Exception as e:
+                logging.error(f"Ошибка при создании UserWithBirthdays для пользователя {user.id}: {str(e)}")
+                # Добавляем с пустыми списками контактов вместо полного исключения
+                result.append(schemas.UserWithBirthdays(
+                    id=user.id,
+                    username=user.username,
+                    email=email,  # Используем исправленный email
+                    role=user.role or "user",
+                    contacts_next7days=[],
+                    contacts_next12months=[]
+                ))
     
     return result
 
