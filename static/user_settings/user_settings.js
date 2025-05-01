@@ -95,11 +95,14 @@ async function renderUserSettings() {
           </div>
           
           <div class="settings-row" id="avatar-row">
-            <div class="settings-label">Аватар:</div>
-            <div class="settings-value">
-              <div class="avatar-preview">
+            <div class="settings-label">Аватар:
+                <br>
+                <br>
+                <div class="avatar-preview">
                 <img src="${currentUserData.avatar_url || '/static/menu/img/user_1.png'}" alt="Аватар користувача">
-              </div>
+                </div>
+            </div>
+            <div class="settings-value">
               <div class="user_avatar_cloudinary">
                 <!-- Здесь будут отображаться загруженные аватары -->
               </div>
@@ -119,7 +122,8 @@ async function renderUserSettings() {
     
     // Добавляем обработчики событий для кнопок
     setupSettingsEventHandlers();
-    
+
+
     // Предотвращаем сброс страницы при клике внутри контейнера настроек
     const container = document.getElementById('settings-container');
     if (container) {
@@ -128,8 +132,12 @@ async function renderUserSettings() {
       });
     }
     
+ 
+    
     // Загружаем аватары пользователя (вызываем функцию из user_avatar_settings.js)
-    if (typeof loadUserAvatars === 'function') {
+    if (typeof window.setupUserAvatars === 'function') {
+      window.setupUserAvatars();
+    } else if (typeof loadUserAvatars === 'function') {
       loadUserAvatars();
     }
     
@@ -141,27 +149,11 @@ async function renderUserSettings() {
 
 // Настройка обработчиков событий для кнопок в настройках
 function setupSettingsEventHandlers() {
-  // Кнопка возврата к контактам
+  // Кнопка возврата к контактам - должна быть единственным способом выйти из настроек
   const backBtn = document.getElementById('back-to-contacts-btn');
   if (backBtn) {
     backBtn.addEventListener('click', function() {
-      const contactsList = document.getElementById('contacts-list');
-      if (contactsList) {
-        contactsList.removeAttribute('data-mode');
-      }
-      
-      // Восстанавливаем значение поиска, если оно было сохранено
-      if (window._savedSearchValue) {
-        const searchInput = document.getElementById('contact-search');
-        if (searchInput) {
-          searchInput.value = window._savedSearchValue;
-          delete window._savedSearchValue;
-        }
-      }
-      
-      // Используем функции из contacts.js для возврата к отображению контактов
-      if (typeof resetContactsUI === 'function') resetContactsUI();
-      if (typeof fetchAndRenderContacts === 'function') fetchAndRenderContacts();
+      returnToContacts();
     });
   }
   
@@ -237,7 +229,7 @@ function setupSettingsEventHandlers() {
       changeAvatarBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         const avatarsContainer = document.querySelector('.user_avatar_cloudinary');
-        if (avatarsContainer) {
+    if (avatarsContainer) {
           avatarsContainer.classList.toggle('show-avatars');
           this.textContent = avatarsContainer.classList.contains('show-avatars') ? 'Сховати аватари' : 'Змінити аватар';
         } else {
@@ -336,6 +328,9 @@ async function saveUsername() {
       currentUserData.username = newUsername;
     }
     
+    // Обновляем имя пользователя в интерфейсе
+    updateDashboardUserProfile();
+    
     // Обновляем отображение после успешного изменения
     renderUserSettings();
     
@@ -347,6 +342,30 @@ async function saveUsername() {
   } catch (error) {
     console.error('Ошибка при обновлении имени пользователя:', error);
     alert('Помилка при оновленні імені користувача');
+  }
+}
+
+// Функция обновления профиля пользователя в дашборде
+function updateDashboardUserProfile() {
+  // Обновляем аватар в главном меню
+  if (typeof loadUserProfile === 'function') {
+    loadUserProfile();
+    return;
+  }
+  
+  // Альтернативный способ - обновляем аватар и имя пользователя напрямую
+  const menuAvatar = document.querySelector('.avatar-in-menu img');
+  const menuUsername = document.querySelector('.username-in-menu');
+  
+  if (menuAvatar) {
+    const currentAvatar = document.querySelector('.avatar-preview img');
+    if (currentAvatar) {
+      menuAvatar.src = currentAvatar.src;
+    }
+  }
+  
+  if (menuUsername && currentUserData) {
+    menuUsername.textContent = currentUserData.username;
   }
 }
 

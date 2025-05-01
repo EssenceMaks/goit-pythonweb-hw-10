@@ -38,7 +38,6 @@ function getAccessToken() {
 function setupAvatarEventListeners() {
   console.log('Setting up avatar event listeners');
   const uploadAvatarBtn = document.querySelector('.upload-avatar-btn');
-  const changeAvatarBtn = document.querySelector('.change-avatar-btn');
   
   if (uploadAvatarBtn) {
     console.log('Found upload button:', uploadAvatarBtn);
@@ -49,17 +48,6 @@ function setupAvatarEventListeners() {
     });
   } else {
     console.log('Upload avatar button not found');
-  }
-  
-  if (changeAvatarBtn) {
-    console.log('Found change button:', changeAvatarBtn);
-    changeAvatarBtn.addEventListener('click', function(e) {
-      console.log('Change avatar button clicked');
-      e.stopPropagation();
-      toggleAvatarsGallery(this);
-    });
-  } else {
-    console.log('Change avatar button not found');
   }
   
   // Добавляем обработчик закрытия формы загрузки по клику вне формы
@@ -113,6 +101,9 @@ function displayUserAvatars(avatars) {
   const avatarsContainer = document.querySelector('.user_avatar_cloudinary');
   if (!avatarsContainer) return;
   
+  // Показываем контейнер аватаров по умолчанию
+  avatarsContainer.classList.add('show-avatars');
+  
   // Создаем структуру для отображения аватаров
   avatarsContainer.innerHTML = `
     <div class="avatars-gallery">
@@ -134,8 +125,8 @@ function displayUserAvatars(avatars) {
     avatarElement.innerHTML = `
       <img src="${avatar.file_path}" alt="Аватар пользователя">
       <div class="avatar-actions">
-        ${!avatar.is_main ? `<button class="set-main-avatar-btn" data-id="${avatar.id}">Сделать основным</button>` : '<span class="main-badge">Основной</span>'}
-        <button class="delete-avatar-btn" data-id="${avatar.id}">Удалить</button>
+        ${!avatar.is_main ? `<button class="set-main-avatar-btn" data-id="${avatar.id}">Зробити основним</button>` : '<span class="main-badge">Основний</span>'}
+        <button class="delete-avatar-btn" data-id="${avatar.id}">Видалити</button>
       </div>
     `;
     
@@ -163,27 +154,52 @@ function displayUserAvatars(avatars) {
       e.stopPropagation();
       const avatarId = this.closest('.avatar-item').dataset.id;
       if (!this.closest('.avatar-item').classList.contains('main-avatar')) {
-        setMainAvatar(avatarId);
+        highlightSelectedAvatar(avatarId);
       }
     });
   });
+  
+  // Изменяем текст кнопки управления аватарами
+  const changeAvatarBtn = document.querySelector('.change-avatar-btn');
+  if (changeAvatarBtn) {
+    changeAvatarBtn.textContent = 'Змінити аватар';
+  }
 }
 
 /**
- * Переключает отображение галереи аватаров
- * @param {HTMLElement} buttonElement - кнопка, которая была нажата
+ * Подсвечивает выбранный аватар и активирует кнопку изменения
+ * @param {string} avatarId - ID выбранного аватара
  */
-function toggleAvatarsGallery(buttonElement) {
-  const avatarsContainer = document.querySelector('.user_avatar_cloudinary');
-  if (!avatarsContainer) return;
+function highlightSelectedAvatar(avatarId) {
+  // Удаляем класс выбранного аватара со всех аватаров кроме основного
+  document.querySelectorAll('.avatar-item:not(.main-avatar)').forEach(item => {
+    item.classList.remove('selected-avatar');
+  });
   
-  avatarsContainer.classList.toggle('show-avatars');
+  // Добавляем класс выбранного аватара к текущему
+  const selectedAvatar = document.querySelector(`.avatar-item[data-id="${avatarId}"]`);
+  if (selectedAvatar) {
+    selectedAvatar.classList.add('selected-avatar');
+  }
   
-  if (avatarsContainer.classList.contains('show-avatars')) {
-    buttonElement.textContent = 'Сховати аватари';
-    loadUserAvatars(); // Обновляем список при показе
-  } else {
-    buttonElement.textContent = 'Змінити аватар';
+  // Активируем кнопку изменения аватара
+  const changeAvatarBtn = document.querySelector('.change-avatar-btn');
+  if (changeAvatarBtn) {
+    changeAvatarBtn.classList.add('active');
+    changeAvatarBtn.textContent = 'Зробити основним';
+    changeAvatarBtn.dataset.selectedId = avatarId;
+    
+    // Добавляем обработчик клика для кнопки изменения
+    changeAvatarBtn.onclick = function(e) {
+      e.stopPropagation();
+      const selectedId = this.dataset.selectedId;
+      if (selectedId) {
+        setMainAvatar(selectedId);
+        this.classList.remove('active');
+        this.textContent = 'Змінити аватар';
+        delete this.dataset.selectedId;
+      }
+    };
   }
 }
 
@@ -323,11 +339,9 @@ async function uploadAvatar(file) {
     
     // Перезагружаем список аватаров и показываем галерею
     loadUserAvatars();
-    document.querySelector('.user_avatar_cloudinary').classList.add('show-avatars');
-    const changeAvatarBtn = document.querySelector('.change-avatar-btn');
-    if (changeAvatarBtn) {
-      changeAvatarBtn.textContent = 'Сховати аватари';
-    }
+    
+    // Обновляем профиль пользователя в дашборде
+    updateDashboardUserProfile();
     
   } catch (error) {
     console.error('Ошибка при загрузке аватара:', error);
@@ -383,6 +397,31 @@ function updateUserAvatarPreview(avatarUrl) {
 }
 
 /**
+ * Обновляет информацию о пользователе в дашборде
+ */
+function updateDashboardUserProfile() {
+  // Обновляем аватар в главном меню
+  if (typeof loadUserProfile === 'function') {
+    loadUserProfile();
+  }
+  
+  // Альтернативный способ - обновляем аватар и имя пользователя напрямую
+  const menuAvatar = document.querySelector('.avatar-in-menu img');
+  const menuUsername = document.querySelector('.username-in-menu');
+  
+  if (menuAvatar) {
+    const currentAvatar = document.querySelector('.avatar-preview img');
+    if (currentAvatar) {
+      menuAvatar.src = currentAvatar.src;
+    }
+  }
+  
+  if (menuUsername && currentUserData) {
+    menuUsername.textContent = currentUserData.username;
+  }
+}
+
+/**
  * Устанавливает аватар как основной
  * @param {string} avatarId - ID аватара
  */
@@ -430,15 +469,20 @@ async function setMainAvatar(avatarId) {
       avatarItem.classList.add('main-avatar');
     }
     
+    // Возвращаем кнопку изменения аватара в нормальное состояние
+    const changeAvatarBtn = document.querySelector('.change-avatar-btn');
+    if (changeAvatarBtn) {
+      changeAvatarBtn.classList.remove('active');
+      changeAvatarBtn.textContent = 'Змінити аватар';
+      delete changeAvatarBtn.dataset.selectedId;
+    }
+    
     // Перезагружаем список для обновления статусов
     loadUserAvatars();
     
-    // Обновляем аватар в главном меню, если есть функция
-    // Функция loadUserProfile должна быть определена в другом файле
-    const avatarInMenu = document.querySelector('.avatar-in-menu img');
-    if (avatarInMenu && typeof loadUserProfile === 'function') {
-      loadUserProfile();
-    }
+    // Обновляем профиль пользователя в дашборде
+    updateDashboardUserProfile();
+    
   } catch (error) {
     console.error('Ошибка при установке основного аватара:', error);
     
@@ -493,11 +537,8 @@ async function deleteAvatar(avatarId) {
     
     loadUserAvatars(); // Перезагружаем список аватаров
     
-    // Если удалили текущий аватар в меню, обновляем интерфейс
-    const avatarInMenu = document.querySelector('.avatar-in-menu img');
-    if (avatarInMenu && typeof loadUserProfile === 'function') {
-      loadUserProfile();
-    }
+    // Обновляем профиль пользователя в дашборде
+    updateDashboardUserProfile();
     
   } catch (error) {
     console.error('Ошибка при удалении аватара:', error);
