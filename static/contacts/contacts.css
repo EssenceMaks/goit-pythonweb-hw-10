@@ -31,7 +31,32 @@
   border: none;
   transition: box-shadow 0.2s, background 0.2s;
   overflow: visible;
+  /* По умолчанию каждый контакт на новой строке */
+  display: block;
 }
+
+/* Стили для режимов просмотра 1 и 2 - контакты в строку */
+[data-view-mode="1"] .contact-tile,
+[data-view-mode="2"] .contact-tile {
+  display: inline-block;
+  margin-right: 10px;
+  vertical-align: top;
+}
+
+/* Стили для режимов просмотра 3 и 4 - контакты в столбец */
+[data-view-mode="3"] .contact-tile,
+[data-view-mode="4"] .contact-tile {
+  display: block;
+}
+
+/* Небольшие дополнительные стили для удобства отображения в строку */
+[data-view-mode="1"] .contact-tile-mini,
+[data-view-mode="2"] .contact-tile-mini {
+  margin-bottom: 10px;
+  padding: 12px;
+}
+
+/* Остальные стили остаются без изменений */
 
 .contact-tile-border {
   position: absolute !important;

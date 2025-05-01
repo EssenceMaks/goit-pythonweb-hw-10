@@ -119,6 +119,13 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       contactsViewMode = +btn.dataset.view;
+      
+      // Устанавливаем атрибут data-view-mode на контейнере контактов
+      const contactsList = document.getElementById('contacts-list');
+      if (contactsList) {
+        contactsList.setAttribute('data-view-mode', contactsViewMode);
+      }
+      
       expandedContactId = null;
       const search = document.getElementById('contact-search')?.value.trim() || '';
       fetchAndRenderContactsInner({search, dir: alphaSortDir});
@@ -360,6 +367,10 @@ async function fetchContact(id) {
 async function renderContacts() {
   if (birthdayMode) return; // Не рендерить обычные контакты, если активен шаблон дней рожденья
   const list = document.getElementById('contacts-list');
+  
+  // Устанавливаем атрибут data-view-mode для контейнера контактов
+  list.setAttribute('data-view-mode', contactsViewMode);
+  
   list.innerHTML = '<div>Завантаження...</div>';
   const data = contactsCache;
 
