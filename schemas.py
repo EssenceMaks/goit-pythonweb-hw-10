@@ -1,5 +1,5 @@
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel, EmailStr, Field, constr, validator
 import re
 
@@ -71,6 +71,19 @@ class Contact(ContactBase):
     avatars: List[Avatar] = []
     photos: List[Photo] = []
     groups: List[Group] = []
+    class Config:
+        orm_mode = True
+
+# Добавляю класс UserResponse для эндпоинта /users/me
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+    role: str
+    avatar_url: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    
     class Config:
         orm_mode = True
 

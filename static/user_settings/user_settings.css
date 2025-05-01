@@ -1,0 +1,302 @@
+/* Стили для страницы настроек пользователя */
+
+.user-settings-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: var(--main-font);
+}
+
+.settings-header {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 25px;
+}
+
+.settings-header h2 {
+  margin: 15px 0;
+  color: var(--primary-color, #3f51b5);
+  font-size: 1.5em;
+}
+
+.back-btn {
+  align-self: flex-start;
+  background-color: transparent;
+  border: none;
+  color: var(--primary-color, #3f51b5);
+  cursor: pointer;
+  font-size: 1em;
+  padding: 5px 0;
+  margin-bottom: 10px;
+  transition: color 0.3s;
+}
+
+.back-btn:hover {
+  color: var(--accent-color, #f50057);
+}
+
+.settings-form {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  padding: 15px 20px;
+  align-items: flex-start;
+  border-bottom: 1px solid #eee;
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.settings-label {
+  width: 200px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.settings-value {
+  flex: 1;
+  padding: 0 15px;
+}
+
+.settings-action {
+  width: 200px;
+  text-align: right;
+}
+
+.email-note {
+  color: #999;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.avatar-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid #ddd;
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Кнопки редактирования */
+.edit-username-btn,
+.edit-password-btn,
+.reset-password-btn,
+.change-avatar-btn {
+  background-color: var(--primary-color, #3f51b5);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-left: 5px;
+  transition: background-color 0.3s;
+}
+
+.edit-username-btn:hover,
+.edit-password-btn:hover,
+.change-avatar-btn:hover {
+  background-color: var(--primary-dark-color, #303f9f);
+}
+
+.reset-password-btn {
+  background-color: var(--warning-color, #ff9800);
+}
+
+.reset-password-btn:hover {
+  background-color: var(--warning-dark-color, #f57c00);
+}
+
+/* Кнопки сохранения и отмены */
+.save-btn {
+  background-color: var(--success-color, #4caf50);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-right: 5px;
+}
+
+.cancel-btn {
+  background-color: var(--cancel-color, #9e9e9e);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.save-btn:hover {
+  background-color: var(--success-dark-color, #388e3c);
+}
+
+.cancel-btn:hover {
+  background-color: var(--cancel-dark-color, #757575);
+}
+
+/* Стили для полей ввода */
+.settings-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+  margin-bottom: 0;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #3f51b5);
+  box-shadow: 0 0 3px rgba(63, 81, 181, 0.3);
+}
+
+/* Стили для формы изменения пароля */
+.password-edit-form {
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 10px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 0.9em;
+  color: #555;
+}
+
+/* Особые стили для действий формы пароля */
+.password-edit-actions {
+  align-self: flex-end;
+  margin-top: 10px;
+}
+
+.error-message {
+  color: var(--error-color, #f44336);
+  padding: 15px;
+  text-align: center;
+}
+
+/* Общие стили для попапов */
+.popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.popup-content {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.popup h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--primary-color, #3f51b5);
+  font-size: 1.5em;
+}
+
+.popup .form-group {
+  margin-bottom: 15px;
+}
+
+.popup label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.popup input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.popup .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* Когда попап открыт, добавляем класс body для предотвращения скролла */
+body.popup-open {
+  overflow: hidden;
+}
+
+/* Специфические стили для попапа редактирования имени пользователя */
+#popup-edit-username .popup-content {
+  max-width: 450px;
+}
+
+/* Стили для попапа изменения пароля */
+#popup-change-password .popup-content {
+  max-width: 500px;
+}
+
+/* Адаптивные стили для мобильных устройств */
+@media (max-width: 768px) {
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .settings-label {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  
+  .settings-value {
+    width: 100%;
+    padding: 5px 0;
+  }
+  
+  .settings-action {
+    width: 100%;
+    text-align: left;
+    margin-top: 10px;
+  }
+  
+  .edit-username-btn,
+  .edit-password-btn,
+  .reset-password-btn,
+  .change-avatar-btn {
+    margin-left: 0;
+    margin-right: 5px;
+  }
+  
+  .popup-content {
+    width: 95%;
+    padding: 15px;
+  }
+}

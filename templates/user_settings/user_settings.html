@@ -1,0 +1,73 @@
+<!-- Шаблон для страницы настроек пользователя -->
+<div class="user-settings-container">
+  <div class="settings-header">
+    <button id="back-to-contacts-btn" class="back-btn">← Повернутися до контактів</button>
+    <h2>Налаштування користувача</h2>
+  </div>
+  
+  <div class="settings-form">
+    <div class="settings-row">
+      <div class="settings-label">Email:</div>
+      <div class="settings-value" id="user-email"></div>
+      <div class="settings-action">
+        <span class="email-note">(Змінити неможливо)</span>
+      </div>
+    </div>
+    
+    <div class="settings-row">
+      <div class="settings-label">Ім'я користувача:</div>
+      <div class="settings-value" id="user-username"></div>
+      <div class="settings-action">
+        <button class="edit-username-btn">Редагувати</button>
+      </div>
+    </div>
+    
+    <div class="settings-row">
+      <div class="settings-label">Пароль:</div>
+      <div class="settings-value">********</div>
+      <div class="settings-action">
+        <button class="edit-password-btn">Змінити пароль</button>
+        <button class="reset-password-btn">Скинути пароль</button>
+      </div>
+    </div>
+    
+    <div class="settings-row">
+      <div class="settings-label">Аватар:</div>
+      <div class="settings-value">
+        <div class="avatar-preview">
+          <img id="user-avatar" src="/static/menu/img/user_1.png" alt="Аватар користувача">
+        </div>
+      </div>
+      <div class="settings-action">
+        <button class="change-avatar-btn">Змінити аватар</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Шаблон попапа для изменения пароля -->
+<div id="popup-change-password-template" style="display: none;">
+  <div id="popup-change-password" class="popup">
+    <div class="popup-content">
+      <h2>Зміна пароля</h2>
+      <form id="change-password-form">
+        <div class="form-group">
+          <label for="current-password">Поточний пароль:</label>
+          <input type="password" id="current-password" required>
+        </div>
+        <div class="form-group">
+          <label for="new-password">Новий пароль:</label>
+          <input type="password" id="new-password" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="confirm-password">Підтвердіть новий пароль:</label>
+          <input type="password" id="confirm-password" required minlength="6">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="save-btn">Змінити пароль</button>
+          <button type="button" class="cancel-btn" onclick="closePopup('popup-change-password')">Скасувати</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

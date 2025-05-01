@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, status, Cookie, Body
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, status, Cookie, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -7,9 +7,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import Optional
-from datetime import timedelta
+from datetime import timedelta, datetime
 from jose import JWTError, jwt
-from routers import contacts, groups, db_utils, email_verification
+import secrets
+import uuid
+from pydantic import EmailStr
+# Добавляем импорт роутера users
+from routers import contacts, groups, db_utils, email_verification, users
 from database import SessionLocal, engine
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
@@ -17,6 +21,8 @@ import os
 from dotenv import load_dotenv
 # Импортируем функции из auth.py
 from auth import pwd_context, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+# Добавляем импорт нашей новой функции отправки email
+from utils_email_verif import send_verification_email, send_password_reset_email
 
 load_dotenv()
 
@@ -36,6 +42,8 @@ app.add_middleware(
 app.include_router(contacts.router, prefix="/contacts")
 app.include_router(groups.router, prefix="/groups")
 app.include_router(db_utils.router, prefix="/db")
+# Добавляем подключение роутера users
+app.include_router(users.router)
 # Изменяем маршрут для email_verification, убирая префикс /verify,
 # чтобы /auth/register был доступен
 app.include_router(email_verification.router)
@@ -72,7 +80,16 @@ async def root(request: Request):
 
 @app.get("/login")
 async def login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    # Проверяем, было ли успешное изменение пароля
+    password_reset_success = request.session.pop("password_reset_success", False)
+    
+    return templates.TemplateResponse(
+        "login.html", 
+        {
+            "request": request, 
+            "password_reset_success": password_reset_success
+        }
+    )
 
 @app.post("/login")
 async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -421,5 +438,194 @@ async def switch_account(
         )
         
         return response
+    finally:
+        db.close()
+
+# Добавляем маршруты для восстановления пароля
+@app.get("/forgot", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    return templates.TemplateResponse("password_reset/forgot.html", {"request": request})
+
+
+@app.post("/forgot", response_class=HTMLResponse)
+async def forgot_password_submit(request: Request, background_tasks: BackgroundTasks, email: str = Form(...)):
+    db = SessionLocal()
+    try:
+        # Проверяем, существует ли пользователь с таким email
+        user = db.query(models.User).filter(models.User.email == email).first()
+        if not user:
+            return templates.TemplateResponse(
+                "password_reset/forgot.html", 
+                {
+                    "request": request, 
+                    "error": "Пользователь с таким email не найден"
+                }
+            )
+        
+        # Генерируем токен для сброса пароля
+        reset_token = str(uuid.uuid4())
+        
+        # Устанавливаем срок действия токена (24 часа)
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+        
+        # Проверяем, есть ли уже существующие записи для сброса пароля
+        existing_reset = db.query(models.PasswordReset).filter(models.PasswordReset.user_id == user.id).first()
+        
+        if existing_reset:
+            # Если существует - обновляем
+            existing_reset.token = reset_token
+            existing_reset.expires_at = expires_at
+            existing_reset.is_used = False
+        else:
+            # Если не существует - создаем новую запись
+            password_reset = models.PasswordReset(
+                user_id=user.id,
+                token=reset_token,
+                expires_at=expires_at
+            )
+            db.add(password_reset)
+        
+        db.commit()
+        
+        # Генерируем URL для сброса пароля
+        reset_url = f"{request.base_url}reset/{reset_token}"
+        
+        # Логирование для отладки
+        print(f"Ссылка для сброса пароля: {reset_url}")
+        
+        # Отправляем email в фоновом режиме
+        background_tasks.add_task(
+            send_password_reset_email, 
+            to_email=email, 
+            reset_url=str(reset_url), 
+            username=user.username
+        )
+        
+        return templates.TemplateResponse(
+            "password_reset/forgot.html", 
+            {
+                "request": request, 
+                "success": "На вашу почту отправлена ссылка для сброса пароля"
+            }
+        )
+        
+    except Exception as e:
+        print(f"Ошибка при обработке запроса на сброс пароля: {e}")
+        return templates.TemplateResponse(
+            "password_reset/forgot.html", 
+            {
+                "request": request, 
+                "error": "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже."
+            }
+        )
+    finally:
+        db.close()
+
+
+@app.get("/reset/{reset_token}", response_class=HTMLResponse)
+async def reset_password_page(request: Request, reset_token: str):
+    db = SessionLocal()
+    try:
+        # Проверяем валидность токена
+        password_reset = db.query(models.PasswordReset).filter(
+            models.PasswordReset.token == reset_token,
+            models.PasswordReset.is_used == False,
+            models.PasswordReset.expires_at > datetime.utcnow()
+        ).first()
+        
+        if not password_reset:
+            return templates.TemplateResponse(
+                "password_reset/reset.html", 
+                {"request": request, "expired": True, "reset_token": reset_token}
+            )
+        
+        return templates.TemplateResponse(
+            "password_reset/reset.html", 
+            {"request": request, "reset_token": reset_token}
+        )
+    finally:
+        db.close()
+
+
+@app.post("/reset/{reset_token}", response_class=HTMLResponse)
+async def reset_password_submit(
+    request: Request, 
+    reset_token: str, 
+    password: str = Form(...), 
+    confirm_password: str = Form(...)
+):
+    db = SessionLocal()
+    try:
+        # Проверяем совпадение паролей
+        if password != confirm_password:
+            return templates.TemplateResponse(
+                "password_reset/reset.html", 
+                {
+                    "request": request, 
+                    "error": "Пароли не совпадают", 
+                    "reset_token": reset_token
+                }
+            )
+        
+        # Проверяем, что пароль достаточно длинный
+        if len(password) < 6:
+            return templates.TemplateResponse(
+                "password_reset/reset.html", 
+                {
+                    "request": request, 
+                    "error": "Пароль должен содержать не менее 6 символов", 
+                    "reset_token": reset_token
+                }
+            )
+        
+        # Проверяем валидность токена
+        password_reset = db.query(models.PasswordReset).filter(
+            models.PasswordReset.token == reset_token,
+            models.PasswordReset.is_used == False,
+            models.PasswordReset.expires_at > datetime.utcnow()
+        ).first()
+        
+        if not password_reset:
+            return templates.TemplateResponse(
+                "password_reset/reset.html", 
+                {"request": request, "expired": True, "reset_token": reset_token}
+            )
+        
+        # Получаем пользователя
+        user = db.query(models.User).filter(models.User.id == password_reset.user_id).first()
+        if not user:
+            return templates.TemplateResponse(
+                "password_reset/reset.html", 
+                {
+                    "request": request, 
+                    "error": "Пользователь не найден", 
+                    "reset_token": reset_token
+                }
+            )
+        
+        # Обновляем пароль и хешируем его
+        user.hashed_password = models.User.get_password_hash(password)
+        
+        # Отмечаем токен как использованный
+        password_reset.is_used = True
+        
+        db.commit()
+        
+        # Перенаправляем на страницу входа с сообщением об успешной смене пароля
+        response = RedirectResponse(url="/login")
+        response.status_code = 303
+        request.session["password_reset_success"] = True
+        return response
+        
+    except Exception as e:
+        print(f"Ошибка при сбросе пароля: {e}")
+        return templates.TemplateResponse(
+            "password_reset/reset.html", 
+            {
+                "request": request, 
+                "error": "Произошла ошибка при сбросе пароля. Пожалуйста, попробуйте позже.",
+                "reset_token": reset_token
+            }
+        )
     finally:
         db.close()

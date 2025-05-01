@@ -234,11 +234,20 @@ document.addEventListener('DOMContentLoaded', function() {
     searchInput.remove(); // удалить старое поле, если было
   }
   searchInput = document.createElement('input');
-  searchInput.type = 'text';
+  searchInput.type = 'search'; // Изменил тип с text на search
   searchInput.id = 'contact-search';
   searchInput.className = 'contact-search';
   searchInput.placeholder = 'Пошук...';
+  
+  // Добавляем специальные атрибуты для предотвращения автозаполнения
   searchInput.setAttribute('autocomplete', 'off');
+  searchInput.setAttribute('autocorrect', 'off');
+  searchInput.setAttribute('autocapitalize', 'off');
+  searchInput.setAttribute('data-lpignore', 'true'); // Игнорирование LastPass
+  searchInput.setAttribute('data-form-type', 'search'); // Указываем явно, что это поле поиска
+  searchInput.setAttribute('spellcheck', 'false');
+  searchInput.setAttribute('aria-label', 'Пошук контактів');
+  
   searchInput.style.marginRight = '1em';
   searchInput.style.maxWidth = '180px';
   const viewsBlock = document.getElementById('contacts-views');

@@ -13,9 +13,35 @@ async function authorizedFetch(url, options = {}) {
   };
   
   // Добавляем токен из куки как заголовок Authorization
-  const tokenMatch = document.cookie.match(/access_token=([^;]*)/);
-  if (tokenMatch) {
-    const tokenValue = tokenMatch[1];
+  let tokenValue = null;
+  
+  try {
+    // Используем оригинальный метод извлечения токена
+    const tokenMatch = document.cookie.match(/access_token=([^;]*)/);
+    if (tokenMatch) {
+      tokenValue = tokenMatch[1];
+      console.log('Токен успешно извлечен из куки через регулярное выражение');
+    } 
+    // Резервный метод, если оригинальный не сработал
+    else {
+      console.log('Попытка извлечь токен через перебор кук');
+      const cookies = document.cookie.split(';');
+      
+      for (let cookie of cookies) {
+        cookie = cookie.trim();
+        if (cookie.startsWith('access_token=')) {
+          tokenValue = cookie.substring('access_token='.length);
+          console.log('Токен успешно извлечен через перебор кук');
+          break;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка при извлечении токена из куки:', error);
+  }
+  
+  // Если токен найден, добавляем его в заголовки
+  if (tokenValue) {
     // Токен может быть уже с префиксом "Bearer " или без него
     const authHeader = tokenValue.startsWith('Bearer ') 
       ? tokenValue 

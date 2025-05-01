@@ -1,7 +1,11 @@
-from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, Table, DateTime
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, Table, DateTime, Boolean, func
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
+from passlib.context import CryptContext
+
+# Создаём контекст для хеширования паролей
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Association table for many-to-many Contact <-> Group
 contact_group = Table(
@@ -9,8 +13,6 @@ contact_group = Table(
     Column('contact_id', Integer, ForeignKey('contacts.id'), primary_key=True),
     Column('group_id', Integer, ForeignKey('groups.id'), primary_key=True)
 )
-
-from sqlalchemy import Boolean
 
 class User(Base):
     __tablename__ = 'users'
@@ -24,6 +26,15 @@ class User(Base):
 
     avatars = relationship('UserAvatar', back_populates='user', cascade="all, delete-orphan")
     contacts = relationship('Contact', back_populates='user', cascade="all, delete-orphan")
+    password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
+    
+    # Методы для работы с паролем
+    @staticmethod
+    def get_password_hash(password):
+        return pwd_context.hash(password)
+        
+    def verify_password(self, plain_password):
+        return pwd_context.verify(plain_password, self.hashed_password)
 
 class UserAvatar(Base):
     __tablename__ = 'user_avatars'
@@ -105,3 +116,17 @@ class Photo(Base):
     show = Column(Integer, default=1)
 
     contact = relationship('Contact', back_populates='photos')
+
+# Модель для хранения токенов сброса пароля
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token = Column(String, unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)
+    
+    # Отношение к пользователю
+    user = relationship("User", back_populates="password_resets")

@@ -14,3 +14,4 @@ python-socketio
 python-redis
 jinja2
 aiosmtplib
+bcrypt
