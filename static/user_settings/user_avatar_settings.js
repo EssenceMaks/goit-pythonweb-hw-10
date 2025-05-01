@@ -210,6 +210,11 @@ function showAvatarUploadForm() {
   // Удаляем существующую форму, если она есть
   closeAvatarUploadForm();
   
+  // Создаем затемняющий фон
+  const backdrop = document.createElement('div');
+  backdrop.className = 'backdrop';
+  document.body.appendChild(backdrop);
+  
   // Создаем форму для загрузки аватара
   const formHTML = `
     <div class="avatar-upload-form">
@@ -277,8 +282,15 @@ function showAvatarUploadForm() {
     }
   });
   
+  // Закрытие формы при клике на фон или кнопку закрытия
+  backdrop.addEventListener('click', closeAvatarUploadForm);
   cancelBtn.addEventListener('click', closeAvatarUploadForm);
   closeBtn.addEventListener('click', closeAvatarUploadForm);
+  
+  // Предотвращаем закрытие при клике на саму форму
+  form.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
 }
 
 /**
@@ -286,8 +298,12 @@ function showAvatarUploadForm() {
  */
 function closeAvatarUploadForm() {
   const form = document.querySelector('.avatar-upload-form');
+  const backdrop = document.querySelector('.backdrop');
   if (form) {
     form.remove();
+  }
+  if (backdrop) {
+    backdrop.remove();
   }
 }
 

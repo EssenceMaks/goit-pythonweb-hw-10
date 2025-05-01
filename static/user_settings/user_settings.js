@@ -60,7 +60,7 @@ async function renderUserSettings() {
       currentUserData = userData;
     }
     
-    // Создаем шаблон настроек пользователя
+    // Создаем шаблон настроек пользователя в стеклянном стиле
     const settingsTemplate = `
       <div class="user-settings-container" id="settings-container">
         <div class="settings-header">
@@ -95,21 +95,22 @@ async function renderUserSettings() {
           </div>
           
           <div class="settings-row" id="avatar-row">
-            <div class="settings-label">Аватар:
-                <br>
-                <br>
-                <div class="avatar-preview">
+            <div class="settings-label">
+              Аватар:
+              <div class="avatar-preview">
                 <img src="${currentUserData.avatar_url || '/static/menu/img/user_1.png'}" alt="Аватар користувача">
-                </div>
+              </div>
             </div>
+            
+            <div class="settings-action">
+              <button class="upload-avatar-btn">Додати аватар</button>
+              <button class="change-avatar-btn">Змінити аватар</button>
+            </div>
+            
             <div class="settings-value">
               <div class="user_avatar_cloudinary">
                 <!-- Здесь будут отображаться загруженные аватары -->
               </div>
-            </div>
-            <div class="settings-action">
-              <button class="upload-avatar-btn">Додати аватар</button>
-              <button class="change-avatar-btn">Змінити аватар</button>
             </div>
           </div>
         </div>
@@ -357,6 +358,9 @@ function updateDashboardUserProfile() {
   const menuAvatar = document.querySelector('.avatar-in-menu img');
   const menuUsername = document.querySelector('.username-in-menu');
   
+  // Обновляем также имя пользователя в основном блоке меню
+  const usernameInMenu = document.querySelector('.username');
+  
   if (menuAvatar) {
     const currentAvatar = document.querySelector('.avatar-preview img');
     if (currentAvatar) {
@@ -366,6 +370,10 @@ function updateDashboardUserProfile() {
   
   if (menuUsername && currentUserData) {
     menuUsername.textContent = currentUserData.username;
+  }
+  
+  if (usernameInMenu && currentUserData) {
+    usernameInMenu.textContent = currentUserData.username;
   }
 }
 

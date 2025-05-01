@@ -40,6 +40,26 @@ async function loadUserProfile() {
       }
     }
     
+    // Обновляем имя пользователя в меню
+    if (userData.username) {
+      // Обновляем имя в выпадающем меню
+      const usernameInMenu = document.querySelector('.username-in-menu');
+      if (usernameInMenu) {
+        usernameInMenu.textContent = userData.username;
+      }
+      
+      // Обновляем имя в блоке верхнего меню (div.user-info .username)
+      const usernameElement = document.querySelector('.user-info .username');
+      if (usernameElement) {
+        usernameElement.textContent = userData.username;
+      }
+      
+      // Обновляем глобальную переменную с именем пользователя, если она существует
+      if (typeof window.currentUsername !== 'undefined') {
+        window.currentUsername = userData.username;
+      }
+    }
+    
   } catch (error) {
     console.error('Ошибка при загрузке профиля пользователя:', error);
   }
