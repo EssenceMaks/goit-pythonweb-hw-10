@@ -187,28 +187,38 @@ document.addEventListener('DOMContentLoaded', function() {
       lastClickTime = now;
       lastClickedBtn = birthdayBtn;
       
-      // Если уже в режиме дней рождений, ничего не делаем
-      if (birthdayMode) return;
-      
-      // Отключаем обработчики других кнопок на короткое время
-      document.querySelectorAll('#contacts-views button').forEach(btn => {
-        btn.disabled = true;
-        setTimeout(() => {
-          btn.disabled = false;
-        }, 500);
-      });
-      
-      // Визуальное выделение
-      document.querySelectorAll('#contacts-views button').forEach(btn => btn.classList.remove('active-birthday-btn'));
-      birthdayBtn.classList.add('active-birthday-btn');
-      
-      // Устанавливаем режим просмотра дней рождений
-      birthdayMode = true;
-      
-      // Запуск шаблона дней рождений (только один раз)
-      fetchAndRenderBirthdaysTemplate();
+      // Переключаем режим дней рождений
+      if (birthdayMode) {
+        // Если уже в режиме дней рождений - выключаем его
+        birthdayMode = false;
+        birthdayBtn.classList.remove('active-birthday-btn');
+        // Возвращаемся к обычному отображению контактов
+        const search = document.getElementById('contact-search')?.value.trim() || '';
+        fetchAndRenderContactsInner({search, dir: alphaSortDir});
+      } else {
+        // Включаем режим дней рождений
+        birthdayMode = true;
+        
+        // Визуальное выделение
+        document.querySelectorAll('#contacts-views button').forEach(btn => btn.classList.remove('active-birthday-btn'));
+        birthdayBtn.classList.add('active-birthday-btn');
+        
+        // Запуск шаблона дней рождений
+        fetchAndRenderBirthdaysTemplate();
+      }
     });
     viewSwitcher.appendChild(birthdayBtn);
+    
+    // Добавляем CSS стили для активной кнопки
+    const style = document.createElement('style');
+    style.textContent = `
+      .active-birthday-btn {
+        background-color: #6a5acd !important;
+        color: white !important;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.3) !important;
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   // Корректно интегрировать поле поиска внутрь #contacts-views, чтобы оно был первым элементом

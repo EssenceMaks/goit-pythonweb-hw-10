@@ -301,3 +301,151 @@ document.addEventListener('DOMContentLoaded', function() {
     btnClear.addEventListener('click', ()=>setTimeout(checkDBState, 1000));
   }
 });
+
+// Функции для управления несколькими аккаунтами
+let knownAccounts = [];
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Добавление обработчика клика для выпадающего меню
+    const accountDropdown = document.querySelector('.account-dropdown');
+    if (accountDropdown) {
+        accountDropdown.addEventListener('click', function(e) {
+            // Предотвращаем всплытие события
+            e.stopPropagation();
+            
+            // Переключаем видимость выпадающего меню
+            const dropdownContent = this.querySelector('.dropdown-content');
+            if (dropdownContent) {
+                dropdownContent.classList.toggle('show');
+            }
+        });
+    }
+    
+    // Закрываем меню при клике вне его
+    document.addEventListener('click', function() {
+        const dropdownContent = document.querySelector('.dropdown-content');
+        if (dropdownContent && dropdownContent.classList.contains('show')) {
+            dropdownContent.classList.remove('show');
+        }
+    });
+    
+    // Загрузка сохраненных аккаунтов из localStorage
+    loadKnownAccounts();
+    
+    // Проверяем текущего пользователя и добавляем его в список
+    const currentUser = {
+        id: window.currentUserId || '',
+        username: window.currentUsername || '',
+        email: window.currentEmail || '',
+        role: window.userRole || 'user'
+    };
+    
+    console.log("Текущий пользователь:", currentUser);
+    
+    // Если у нас есть данные о текущем пользователе, добавляем его в список известных аккаунтов
+    if (currentUser.id && (currentUser.email || currentUser.username)) {
+        addToKnownAccounts(currentUser);
+    }
+    
+    // Обновляем дропдаун меню
+    updateAccountsDropdown();
+});
+
+// Загрузка известных аккаунтов из localStorage
+function loadKnownAccounts() {
+    const savedAccounts = localStorage.getItem('knownAccounts');
+    if (savedAccounts) {
+        try {
+            knownAccounts = JSON.parse(savedAccounts);
+            console.log('Загружены сохраненные аккаунты:', knownAccounts);
+        } catch (e) {
+            console.error('Ошибка при загрузке сохраненных аккаунтов:', e);
+            knownAccounts = [];
+        }
+    } else {
+        knownAccounts = [];
+    }
+}
+
+// Сохранение списка аккаунтов в localStorage
+function saveKnownAccounts() {
+    localStorage.setItem('knownAccounts', JSON.stringify(knownAccounts));
+}
+
+// Добавление аккаунта в список известных
+function addToKnownAccounts(account) {
+    // Проверяем, есть ли уже такой аккаунт в списке
+    const existingAccountIndex = knownAccounts.findIndex(acc => acc.id === account.id);
+    
+    if (existingAccountIndex !== -1) {
+        // Обновляем существующий аккаунт
+        knownAccounts[existingAccountIndex] = {
+            ...knownAccounts[existingAccountIndex],
+            ...account
+        };
+    } else {
+        // Добавляем новый аккаунт
+        knownAccounts.push(account);
+    }
+    
+    // Сохраняем обновленный список
+    saveKnownAccounts();
+}
+
+// Обновление выпадающего меню с аккаунтами
+function updateAccountsDropdown() {
+    const dropdownContent = document.querySelector('.dropdown-content');
+    if (!dropdownContent) return;
+    
+    // Очищаем текущее содержимое
+    dropdownContent.innerHTML = '';
+    
+    console.log('Обновление выпадающего меню аккаунтов:', knownAccounts);
+    
+    // Добавляем каждый известный аккаунт
+    knownAccounts.forEach(account => {
+        // Проверяем наличие ID для сравнения
+        const isCurrentAccount = account.id === window.currentUserId;
+        
+        const accountItem = document.createElement('div');
+        accountItem.className = 'account-item' + (isCurrentAccount ? ' active-account' : '');
+        accountItem.innerHTML = `
+            <div class="account-info">
+                <div class="account-name">${account.email || account.username || 'Неизвестный пользователь'}</div>
+                <div class="account-role">${account.role || 'user'}</div>
+            </div>
+            ${isCurrentAccount ? '<div class="current-marker">✓</div>' : ''}
+        `;
+        
+        // Добавляем обработчик клика для переключения на этот аккаунт
+        if (!isCurrentAccount) {
+            accountItem.addEventListener('click', () => switchAccount(account));
+        }
+        
+        dropdownContent.appendChild(accountItem);
+    });
+    
+    // Добавляем разделитель, если есть какие-то аккаунты
+    if (knownAccounts.length > 0) {
+        const divider = document.createElement('div');
+        divider.className = 'dropdown-divider';
+        dropdownContent.appendChild(divider);
+    }
+    
+    // Добавляем кнопку "Add Login"
+    const addLoginLink = document.createElement('a');
+    addLoginLink.href = '/login';
+    addLoginLink.className = 'add-login-link';
+    addLoginLink.textContent = 'Add Login';
+    dropdownContent.appendChild(addLoginLink);
+}
+
+// Переключение на другой аккаунт
+function switchAccount(account) {
+    // Предотвращаем всплытие события клика
+    event.stopPropagation();
+    
+    // Здесь отправляем запрос на сервер для переключения на выбранный аккаунт
+    window.location.href = `/switch_account/${account.id}`;
+}

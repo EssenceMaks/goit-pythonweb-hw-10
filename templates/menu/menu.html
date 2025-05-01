@@ -1,15 +1,20 @@
 <div class="menu">
   <script>
     window.selectedUserId = "{{ user.id }}";
-    // Добавляем явное сохранение роли пользователя в JavaScript
     window.userRole = "{{ user.role }}";
+    window.currentUserId = "{{ user.id }}";
+    window.currentUsername = "{{ user.username }}";
+    window.currentEmail = "{{ user.email }}";
   </script>
   
   <!-- Account dropdown section -->
   <div class="account-section">
     <div class="account-dropdown">
-      <span class="account-label">аккаунт | {{ user.username[:10] + '...' if user.username|length > 10 else user.username }}</span>
+      <span class="account-label">login: {{ user.email[:15] + '...' if user.email|length > 15 else user.email }}</span>
       <span class="dropdown-arrow">▼</span>
+      <div class="dropdown-content">
+        <a href="/login" class="add-login-link">Add Login</a>
+      </div>
     </div>
   </div>
   
@@ -43,8 +48,8 @@
   <div class="actions-section">
     <button id="btn-create-contact">Створити контакт</button>
     <button id="btn-fill">Створити випадкові контакти</button>
-    <button id="btn-clear">Видалити всі контакти</button>
-    {% if user.role == 'superadmin' or user.role == 'admin' %}
+    {% if user.role == 'superadmin' %}
+      <button id="btn-clear">Видалити всі контакти</button>
       <button id="btn-create-db">Створити шаблон бази</button>
       <button id="btn-drop-db">Видалити базу</button>
     {% endif %}
@@ -55,83 +60,3 @@
     <a href="/logout" class="logout-link">Вийти</a>
   </div>
 </div>
-
-<style>
-  .menu {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-  }
-  
-  .account-dropdown {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px;
-    background-color: #f5f5f5;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  
-  .dropdown-arrow {
-    font-size: 12px;
-  }
-  
-  .avatar-section {
-    display: flex;
-    justify-content: center;
-    margin: 10px 0;
-  }
-  
-  .user-avatar {
-    width: 150px;
-    height: auto;
-    border-radius: 50%;
-    background-color: #4CAF50; /* Зеленый фон для аватарки */
-    padding: 5px;
-  }
-  
-  .user-info {
-    text-align: center;
-  }
-  
-  .username {
-    font-weight: bold;
-    font-size: 1.1em;
-  }
-  
-  .userrole {
-    display: block;
-    font-size: 0.9em;
-    color: #666;
-    margin-top: 5px;
-  }
-  
-  .settings-link {
-    display: block;
-    text-align: center;
-    color: #ffb347;
-    margin: 10px 0;
-  }
-  
-  .actions-section {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 15px 0;
-  }
-  
-  .actions-section button {
-    width: 100%;
-  }
-  
-  .logout-section {
-    margin-top: 20px;
-    text-align: center;
-  }
-  
-  .logout-link {
-    color: #ff5e62;
-    font-weight: bold;
-  }
-</style>

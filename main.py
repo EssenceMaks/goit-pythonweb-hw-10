@@ -98,13 +98,14 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             request.session["user"] = {
                 "id": superadmin_id,  # Используем -1 как специальный ID для суперадмина, если нет в БД
                 "username": username,
+                "email": username,  # Добавляем email для суперадмина
                 "role": "superadmin"
             }
             
             # Создаем JWT-токен для API-запросов суперадмина
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
-                data={"sub": username, "id": superadmin_id, "role": "superadmin"}, 
+                data={"sub": username, "id": superadmin_id, "role": "superadmin", "email": username}, 
                 expires_delta=access_token_expires
             )
             
@@ -133,13 +134,14 @@ async def login_post(request: Request, username: str = Form(...), password: str 
             request.session["user"] = {
                 "id": user.id,
                 "username": user.username,
+                "email": user.email,  # Добавляем email пользователя
                 "role": user.role or "user"  # Используем роль из БД или по умолчанию "user"
             }
             
             # Создаем JWT-токен для API-запросов
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
-                data={"sub": user.username, "id": user.id, "role": user.role or "user"}, 
+                data={"sub": user.username, "id": user.id, "role": user.role or "user", "email": user.email}, 
                 expires_delta=access_token_expires
             )
             
@@ -320,5 +322,55 @@ async def change_user_role(
         updated_user = update_user_role(db, user_id, new_role)
         
         return {"status": "success", "message": f"Роль пользователя изменена на {new_role}"}
+    finally:
+        db.close()
+
+# Эндпоинт для переключения между аккаунтами
+@app.get("/switch_account/{user_id}", response_class=RedirectResponse)
+async def switch_account(
+    request: Request,
+    user_id: int
+):
+    db = SessionLocal()
+    try:
+        # Получаем пользователя по ID
+        user_to_switch = get_user_by_id(db, user_id)
+        if not user_to_switch:
+            return RedirectResponse(url="/login", status_code=303)
+        
+        # Сохраняем данные пользователя в сессии
+        request.session["user"] = {
+            "id": user_to_switch.id,
+            "username": user_to_switch.username,
+            "email": user_to_switch.email,
+            "role": user_to_switch.role or "user"
+        }
+        
+        # Создаем новый JWT-токен для API-запросов
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={
+                "sub": user_to_switch.username, 
+                "id": user_to_switch.id, 
+                "role": user_to_switch.role or "user",
+                "email": user_to_switch.email
+            }, 
+            expires_delta=access_token_expires
+        )
+        
+        # Удаляем домен из email для URL если username это email
+        clean_username = clean_username_for_url(user_to_switch.username)
+        response = RedirectResponse(url=f"/{clean_username}_{user_to_switch.role or 'user'}/", status_code=303)
+        
+        # Устанавливаем cookie с токеном
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=1800,  # 30 минут в секундах
+            path="/"
+        )
+        
+        return response
     finally:
         db.close()
