@@ -52,9 +52,8 @@ async function checkDBState() {
   try {
     console.log('Проверка состояния базы данных...');
     
-    // Получаем токен из cookie
-    const token = document.cookie.match(/access_token=([^;]*)/);
-    const authHeader = token ? {'Authorization': token[1]} : {};
+    // Используем обновленную функцию getAuthHeader для получения заголовка авторизации
+    const authHeader = getAuthHeader();
     
     const response = await fetch('/db/check-state', {
       method: 'GET',
@@ -86,8 +85,16 @@ async function checkDBState() {
 
 // Получение токена для авторизованных запросов
 function getAuthHeader() {
-  const token = document.cookie.match(/access_token=([^;]*)/);
-  return token ? {'Authorization': token[1]} : {};
+  const tokenMatch = document.cookie.match(/access_token=([^;]*)/);
+  if (!tokenMatch) return {};
+  
+  // Токен может быть уже с префиксом "Bearer " или без него
+  const tokenValue = tokenMatch[1];
+  if (tokenValue.startsWith('Bearer ')) {
+    return {'Authorization': tokenValue};
+  } else {
+    return {'Authorization': `Bearer ${tokenValue}`};
+  }
 }
 
 // Обновленная функция для выполнения авторизованных запросов

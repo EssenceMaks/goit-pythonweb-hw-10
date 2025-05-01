@@ -12,6 +12,25 @@ async function authorizedFetch(url, options = {}) {
     credentials: 'include' // Важно для отправки cookies
   };
   
+  // Добавляем токен из куки как заголовок Authorization
+  const tokenMatch = document.cookie.match(/access_token=([^;]*)/);
+  if (tokenMatch) {
+    const tokenValue = tokenMatch[1];
+    // Токен может быть уже с префиксом "Bearer " или без него
+    const authHeader = tokenValue.startsWith('Bearer ') 
+      ? tokenValue 
+      : `Bearer ${tokenValue}`;
+    
+    fetchOptions.headers = {
+      ...fetchOptions.headers,
+      'Authorization': authHeader
+    };
+    
+    console.log('Добавлен заголовок авторизации из куки');
+  } else {
+    console.log('Токен в куки не найден');
+  }
+  
   // Выполняем запрос
   try {
     console.log(`Sending request to ${url} with options:`, fetchOptions);
@@ -21,7 +40,7 @@ async function authorizedFetch(url, options = {}) {
     // Проверка статуса
     if (response.status === 401) {
       console.error('Не авторизован. Перенаправление на страницу входа');
-      // window.location.href = '/login'; // Временно отключаем автоматический редирект для отладки
+      window.location.href = '/login'; // Включаем автоматический редирект при 401
       return null;
     }
     

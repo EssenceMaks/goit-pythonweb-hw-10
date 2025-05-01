@@ -46,17 +46,35 @@ async def get_token_from_request(
 ):
     # Сначала проверяем токен из OAuth2 (заголовок Authorization)
     if token:
+        print(f"Получен токен из заголовка Authorization: {token[:10]}...")
         return token
     
     # Затем проверяем токен из Cookie
-    if access_token and access_token.startswith("Bearer "):
-        return access_token[7:]  # Убираем префикс "Bearer "
+    if access_token:
+        # Обрабатываем токен с префиксом Bearer или без него
+        token_value = access_token
+        if token_value.startswith("Bearer "):
+            token_value = token_value[7:]  # Убираем префикс "Bearer "
+        print(f"Получен токен из cookie: {token_value[:10]}...")
+        return token_value
     
     # В крайнем случае пытаемся получить токен из заголовка вручную
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
-        return auth_header[7:]  # Убираем префикс "Bearer "
+        token_value = auth_header[7:]  # Убираем префикс "Bearer "
+        print(f"Получен токен из заголовка вручную: {token_value[:10]}...")
+        return token_value
     
+    # Проверяем куки напрямую из запроса
+    cookies = request.cookies
+    if 'access_token' in cookies:
+        cookie_token = cookies['access_token']
+        if cookie_token.startswith("Bearer "):
+            cookie_token = cookie_token[7:]
+        print(f"Получен токен из request.cookies: {cookie_token[:10]}...")
+        return cookie_token
+    
+    print("Токен не найден")
     return None
 
 async def get_current_user(request: Request, token: Optional[str] = Depends(get_token_from_request)):
@@ -68,23 +86,63 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(get_
     
     # Если токена нет, возвращаем ошибку авторизации
     if not token:
+        print("Ошибка авторизации: Токен отсутствует")
         raise credentials_exception
     
+    # Особая обработка для суперадмина из сессии (запасной вариант)
+    if request and hasattr(request, "session"):
+        user_session = request.session.get("user", {})
+        if user_session.get("role") == "superadmin":
+            # Здесь мы проверяем, есть ли суперадмин в сессии
+            print("Обнаружен суперадмин в сессии, создание временного пользователя")
+            # Создаем временного пользователя с правами суперадмина
+            from models import User
+            temp_user = User(
+                id=user_session.get("id", -1),
+                username=user_session.get("username", "superadmin"),
+                email=user_session.get("username", "superadmin"),
+                role="superadmin"
+            )
+            return temp_user
+    
     try:
+        print(f"Попытка декодирования токена: {token[:10]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"Токен декодирован успешно. Содержимое: {payload}")
         username: str = payload.get("sub")
         user_id: int = payload.get("id")
+        user_role: str = payload.get("role")
+        print(f"Извлеченные данные: username={username}, id={user_id}, role={user_role}")
+        
         if username is None:
+            print("Ошибка: отсутствует поле 'sub' в токене")
             raise credentials_exception
+            
         token_data = TokenData(username=username, user_id=user_id)
-    except JWTError:
+    except JWTError as e:
+        print(f"Ошибка при декодировании JWT: {e}")
         raise credentials_exception
     
     db = SessionLocal()
     try:
         user = get_user_by_username(db, username=token_data.username)
         if user is None:
+            print(f"Пользователь с username={token_data.username} не найден в БД")
+            
+            # Особый случай для суперадмина
+            if "superadmin" in token_data.username:
+                print("Создание объекта пользователя для суперадмина")
+                from models import User
+                return User(
+                    id=user_id or -1,
+                    username=username,
+                    email=username,
+                    role="superadmin"
+                )
+            
             raise credentials_exception
+        
+        print(f"Пользователь найден: id={user.id}, role={user.role}")
         return user
     finally:
         db.close()

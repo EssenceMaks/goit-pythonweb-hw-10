@@ -295,30 +295,49 @@ async function fetchContacts() {
   const params = [];
   if (search) params.push('search=' + encodeURIComponent(search));
   if (alphaSortDir) params.push('sort=' + encodeURIComponent(alphaSortDir));
+  
+  // Проверяем роль пользователя с дополнительной защитой от undefined
+  const userRole = window.userRole || '';
+  console.log('Current userRole:', userRole); // Добавляем логирование для отладки
+  
+  // Определяем, является ли пользователь админом или суперадмином
+  const isAdminOrSuper = userRole === 'admin' || userRole === 'superadmin';
+  
   // Для обычных пользователей — старый endpoint
-  if (window.userRole === 'user') {
+  if (!isAdminOrSuper) {
     params.push('limit=100');
     const userId = window.selectedUserId;
     if (userId) params.push('user_id=' + encodeURIComponent(userId));
     const url = '/contacts' + (params.length ? '?' + params.join('&') : '');
     try {
+      console.log('Выполняется запрос для обычного пользователя:', url);
       // Используем authorizedFetch для отправки JWT-токена
       return await authorizedFetch(url);
-    } catch {
+    } catch (error) {
+      console.error('Ошибка при запросе контактов для обычного пользователя:', error);
       return [];
     }
   } else {
     // Для админа и супер-админа — новый endpoint
     const url = '/contacts/grouped' + (params.length ? '?' + params.join('&') : '');
     try {
+      console.log('Выполняется запрос для админа/суперадмина:', url);
       // Используем authorizedFetch для отправки JWT-токена
       return await authorizedFetch(url);
-    } catch {
-      return [];
+    } catch (error) {
+      console.error('Ошибка при запросе контактов для админа/суперадмина:', error, 'userRole =', userRole);
+      // Если запрос к групповому эндпоинту не удался, попробуем обычный эндпоинт как запасной вариант
+      try {
+        const backupUrl = '/contacts' + (params.length ? '?' + params.join('&') : '');
+        console.log('Пробуем запасной URL для админа/суперадмина:', backupUrl);
+        return await authorizedFetch(backupUrl);
+      } catch (backupError) {
+        console.error('Ошибка при запросе к запасному URL:', backupError);
+        return [];
+      }
     }
   }
 }
-
 
 async function fetchContact(id) {
   const userId = window.selectedUserId || document.body.dataset.userId;

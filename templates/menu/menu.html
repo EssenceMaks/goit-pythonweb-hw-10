@@ -1,19 +1,137 @@
 <div class="menu">
   <script>
     window.selectedUserId = "{{ user.id }}";
+    // Добавляем явное сохранение роли пользователя в JavaScript
+    window.userRole = "{{ user.role }}";
   </script>
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-    <span style="font-weight:bold;font-size:1.1em;">{{ user.username }}</span>
-    <a href="/settings" style="color:#ffb347;">налаштування</a>
+  
+  <!-- Account dropdown section -->
+  <div class="account-section">
+    <div class="account-dropdown">
+      <span class="account-label">аккаунт | {{ user.username[:10] + '...' if user.username|length > 10 else user.username }}</span>
+      <span class="dropdown-arrow">▼</span>
+    </div>
   </div>
-  <button id="btn-create-contact">Створити контакт</button>
-  <button id="btn-fill">Створити випадкові контакти</button>
-  <button id="btn-clear">Видалити всі контакти</button>
-  {% if user.role == 'superadmin' %}
-    <button id="btn-create-db">Створити шаблон бази</button>
-    <button id="btn-drop-db">Видалити базу</button>
-  {% endif %}
-  <div style="margin-top:24px;">
-    <a href="/logout" style="color:#ff5e62;font-weight:bold;">Вийти</a>
+  
+  <!-- User avatar section -->
+  <div class="avatar-section">
+    {% if user.avatar %}
+      <img src="{{ user.avatar }}" alt="User Avatar" class="user-avatar" />
+    {% else %}
+      {% if user.role == 'superadmin' %}
+        <img src="/static/menu/img/manager.png" alt="Admin Avatar" class="user-avatar" />
+      {% elif user.role == 'admin' %}
+        <img src="/static/menu/img/ska.png" alt="Admin Avatar" class="user-avatar" />
+      {% else %}
+        <img src="/static/menu/img/avatar.png" alt="User Avatar" class="user-avatar" />
+      {% endif %}
+    {% endif %}
+  </div>
+  
+  <!-- User info section -->
+  <div class="user-info">
+    <span class="username">{{ user.username }}</span>
+    <span class="userrole">Роль: {{ user.role }}</span>
+  </div>
+  
+  <!-- Settings section -->
+  <div class="settings-section">
+    <a href="/settings" class="settings-link">Налаштування</a>
+  </div>
+  
+  <!-- Main actions section -->
+  <div class="actions-section">
+    <button id="btn-create-contact">Створити контакт</button>
+    <button id="btn-fill">Створити випадкові контакти</button>
+    <button id="btn-clear">Видалити всі контакти</button>
+    {% if user.role == 'superadmin' or user.role == 'admin' %}
+      <button id="btn-create-db">Створити шаблон бази</button>
+      <button id="btn-drop-db">Видалити базу</button>
+    {% endif %}
+  </div>
+  
+  <!-- Logout section -->
+  <div class="logout-section">
+    <a href="/logout" class="logout-link">Вийти</a>
   </div>
 </div>
+
+<style>
+  .menu {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .account-dropdown {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .dropdown-arrow {
+    font-size: 12px;
+  }
+  
+  .avatar-section {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0;
+  }
+  
+  .user-avatar {
+    width: 150px;
+    height: auto;
+    border-radius: 50%;
+    background-color: #4CAF50; /* Зеленый фон для аватарки */
+    padding: 5px;
+  }
+  
+  .user-info {
+    text-align: center;
+  }
+  
+  .username {
+    font-weight: bold;
+    font-size: 1.1em;
+  }
+  
+  .userrole {
+    display: block;
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+  }
+  
+  .settings-link {
+    display: block;
+    text-align: center;
+    color: #ffb347;
+    margin: 10px 0;
+  }
+  
+  .actions-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 15px 0;
+  }
+  
+  .actions-section button {
+    width: 100%;
+  }
+  
+  .logout-section {
+    margin-top: 20px;
+    text-align: center;
+  }
+  
+  .logout-link {
+    color: #ff5e62;
+    font-weight: bold;
+  }
+</style>
