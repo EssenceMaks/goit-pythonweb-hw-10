@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 from auth import pwd_context, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 # Добавляем импорт нашей новой функции отправки email
 from utils_email_verif import send_verification_email, send_password_reset_email
+# Импортируем функции для rate limiting
+from rate_limiter import init_limiter
 
 load_dotenv()
 
@@ -47,6 +49,11 @@ app.include_router(users.router)
 # Изменяем маршрут для email_verification, убирая префикс /verify,
 # чтобы /auth/register был доступен
 app.include_router(email_verification.router)
+
+# Инициализация rate limiter при запуске приложения
+@app.on_event("startup")
+async def startup():
+    await init_limiter()
 
 # Настройка сессий
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "default_secret_key"))

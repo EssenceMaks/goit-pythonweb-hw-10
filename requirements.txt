@@ -16,3 +16,5 @@ jinja2
 aiosmtplib
 bcrypt
 cloudinary
+redis
+fastapi-limiter

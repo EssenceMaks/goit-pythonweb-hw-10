@@ -9,16 +9,19 @@ from models import User, UserAvatar
 from auth import get_current_user, create_access_token
 from schemas import UserResponse
 from utils_cloudinary import upload_image, delete_image
+# Импортируем функцию ограничения запросов
+from rate_limiter import check_rate_limit_me
 
 router = APIRouter(
     prefix="/users",
     tags=["users"],
 )
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, dependencies=[Depends(check_rate_limit_me)])
 async def get_current_user_info(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     Получить информацию о текущем авторизованном пользователе
+    Ограничение: 5 запросов в минуту
     """
     # Получаем основной аватар пользователя (если есть) - используем явный запрос вместо lazy loading
     avatar_url = None
