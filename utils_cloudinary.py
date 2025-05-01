@@ -4,7 +4,7 @@ import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 from dotenv import load_dotenv
 
-# Загружаем переменные окружения из .env файла
+# Завантажуємо змінні середовища з .env файлу
 load_dotenv()
 
 # Конфигурация Cloudinary
@@ -17,7 +17,7 @@ cloudinary.config(
 def upload_image(file, folder="avatars"):
     """
     Загрузка изображения в Cloudinary
-    :param file: файл изображения
+    :param file: файл зображення
     :param folder: папка в Cloudinary
     :return: URL загруженного изображения и public_id
     """
@@ -37,9 +37,9 @@ def upload_image(file, folder="avatars"):
 
 def delete_image(public_id):
     """
-    Удаление изображения из Cloudinary
+    Видалення зображення з Cloudinary
     :param public_id: public_id изображения
-    :return: результат удаления
+    :return: результат видалення
     """
     try:
         result = cloudinary.uploader.destroy(public_id)
@@ -50,9 +50,9 @@ def delete_image(public_id):
 
 def generate_url(public_id, **options):
     """
-    Генерация URL для изображения с трансформациями
+    Генерація URL для зображення з трансформаціями
     :param public_id: public_id изображения
-    :param options: опции трансформации
+    :param options: опції трансформації
     :return: URL изображения
     """
     try:

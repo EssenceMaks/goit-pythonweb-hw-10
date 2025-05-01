@@ -1,4 +1,4 @@
-// Файл для работы с настройками пользователя
+// Файл для роботи з налаштуваннями користувача
 
 document.addEventListener('DOMContentLoaded', function() {
   // Находим ссылку настроек в меню
@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     settingsLink.addEventListener('click', function(e) {
       e.preventDefault(); // Предотвращаем переход по ссылке
       
-      // Здесь очистка поиска нужна, т.к. это первоначальная загрузка настроек
+      // Тут очистка пошуку потрібна, оскільки це початкова завантаження налаштувань
       const searchInput = document.getElementById('contact-search');
       if (searchInput) {
         // Сохраняем оригинальное значение поиска, чтобы восстановить его при необходимости

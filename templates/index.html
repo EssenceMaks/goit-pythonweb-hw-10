@@ -32,7 +32,7 @@
   {% include 'popups/contact_form.html' %}
   {% include 'popups/confirm_delete.html' %}
   
-  <!-- Настройки пользователя динамически генерируются через JavaScript -->
+  <!-- Налаштування користувача динамічно генеруються через JavaScript -->
  
   <!-- Скрипты должны быть подключены после авторизационного скрипта -->
   <script src="/static/app.js"></script>
@@ -41,9 +41,9 @@
   <script src="/static/filter/filter.js"></script>
   <script src="/static/popups/popups.js"></script>
   <script src="/static/footer/footer.js"></script>
-  <!-- Сначала подключаем файл для работы с аватарами -->
+  <!-- Спочатку підключаємо файл для роботи з аватарами -->
   <script src="/static/user_settings/user_avatar_settings.js"></script>
-  <!-- Затем основной файл настроек пользователя -->
+  <!-- Потім основний файл налаштувань користувача -->
   <script src="/static/user_settings/user_settings.js"></script>
   
   <script>
@@ -51,13 +51,13 @@
     window.userRole = "{{ user.role if user and user.role else 'user' }}";
     console.log('User role:', window.userRole);
     
-    // Передаем ID текущего пользователя для проверки на самоизменение ролей
+    // Передаємо ID поточного користувача для перевірки на самозміну ролей
     window.currentUserId = "{{ user.id if user and user.id else '' }}";
     console.log('Current user ID:', window.currentUserId);
     
-    // Добавляем информацию о токене для отладки
+    // Додаємо інформацію про токен для налагодження
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('Cookie есть:', document.cookie.includes('access_token'));
+      console.log('Cookie є:', document.cookie.includes('access_token'));
       
       if (typeof authorizedFetch === 'function') {
         console.log('authorizedFetch успешно загружен');

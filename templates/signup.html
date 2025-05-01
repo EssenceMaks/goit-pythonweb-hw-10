@@ -17,7 +17,7 @@
     <div id="verify-block" style="display:none; margin-top:20px;">
         <h3>Подтвердите email</h3>
         <input id="verify-email" placeholder="Email">
-        <input id="verify-code" placeholder="Код из письма">
+        <input id="verify-code" placeholder="Код з листа">
         <button id="verify-btn">Подтвердить</button>
     </div>
 </div>
@@ -46,10 +46,10 @@ document.getElementById('signup-form').onsubmit = async function(e) {
     if (resp.ok) {
         document.getElementById('verify-block').style.display = '';
         document.getElementById('verify-email').value = fd.get('email');
-        alert('Проверьте почту и введите код!');
+        alert('Перевірте пошту і введіть код!');
     } else {
         const data = await resp.json();
-        alert(data.detail || 'Ошибка регистрации');
+        alert(data.detail || 'Помилка реєстрації');
     }
 };
 document.getElementById('verify-btn').onclick = async function() {
@@ -65,7 +65,7 @@ document.getElementById('verify-btn').onclick = async function() {
         window.location.href = '/login';
     } else {
         const data = await resp.json();
-        alert(data.detail || 'Неверный код');
+        alert(data.detail || 'Неправильний код');
     }
 };
 </script>

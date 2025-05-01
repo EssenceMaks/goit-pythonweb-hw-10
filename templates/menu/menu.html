@@ -24,9 +24,9 @@
       <img src="{{ user.avatar }}" alt="User Avatar" class="user-avatar" />
     {% else %}
       {% if user.role == 'superadmin' %}
-        <img src="/static/menu/img/manager.png" alt="Admin Avatar" class="user-avatar" />
+        <img src="/static/menu/img/s_admin.jfif" alt="Super Admin Avatar" class="user-avatar" />
       {% elif user.role == 'admin' %}
-        <img src="/static/menu/img/ska.png" alt="Admin Avatar" class="user-avatar" />
+        <img src="/static/menu/img/admin.jfif" alt="Admin Avatar" class="user-avatar" />
       {% else %}
         <img src="/static/menu/img/avatar.png" alt="User Avatar" class="user-avatar" />
       {% endif %}

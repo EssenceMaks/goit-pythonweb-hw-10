@@ -122,14 +122,14 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
-/* Заголовки параметров */
+/* Заголовки параметрів */
 .settings-label {
   font-weight: 500;
   color: #c3c9e6;
   font-size: 1rem;
 }
 
-/* Значения параметров */
+/* Значення параметрів */
 .settings-value {
   color: #ffffff;
   font-size: 1.1rem;
@@ -196,7 +196,7 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* Поля ввода в настройках */
+/* Поля введення в налаштуваннях */
 .settings-input {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -292,7 +292,7 @@
 
 /* Стили для отдельных аватарок */
 .user_avatar_item {
-  width: 80px; /* Увеличенный размер для лучшего просмотра */
+  width: 80px; /* Збільшений розмір для кращого перегляду */
   height: 80px;
   border-radius: 50%;
   overflow: hidden;

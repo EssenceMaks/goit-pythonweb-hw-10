@@ -6,8 +6,8 @@ async def send_verification_email(to_email: str, code: str):
     msg = EmailMessage()
     msg['From'] = os.getenv("EMAIL_HOST_USER")
     msg['To'] = to_email
-    msg['Subject'] = "Код подтверждения регистрации"
-    msg.set_content(f"Ваш код подтверждения: {code}")
+    msg['Subject'] = "Код підтвердження реєстрації"
+    msg.set_content(f"Ваш код підтвердження: {code}")
 
     await aiosmtplib.send(
         msg,
@@ -25,7 +25,7 @@ async def send_password_reset_email(to_email: str, reset_url: str, username: str
     msg['To'] = to_email
     msg['Subject'] = "Скидання пароля для вашого облікового запису"
     
-    # Создаем HTML сообщение с кликабельной ссылкой на украинском языке
+    # Створюємо HTML повідомлення з клікабельним посиланням на українській мові
     greeting = f"Вітаємо, {username}!" if username else "Вітаємо!"
     html_content = f"""
     <html>
