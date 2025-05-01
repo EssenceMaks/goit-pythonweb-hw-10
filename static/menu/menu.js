@@ -8,6 +8,46 @@ function closePopup(id) {
   document.getElementById(id).style.display = 'none';
 }
 
+// --- Функция для загрузки профиля пользователя и обновления аватара в меню ---
+async function loadUserProfile() {
+  try {
+    console.log('Загрузка профиля пользователя для аватара в меню...');
+    
+    // Проверяем наличие функции для выполнения авторизованных запросов
+    const fetchFunction = window.authorizedFetch || window.authorizedRequest;
+    
+    if (!fetchFunction) {
+      console.error('Функции authorizedFetch или authorizedRequest не найдены!');
+      return;
+    }
+    
+    // Выполняем запрос к API для получения информации о текущем пользователе
+    const userData = await fetchFunction('/users/me');
+    
+    if (!userData) {
+      console.error('Не удалось получить данные пользователя для обновления аватара');
+      return;
+    }
+    
+    console.log('Получены данные пользователя для аватара:', userData);
+    
+    // Обновляем аватар в меню, если он есть
+    if (userData.avatar_url) {
+      const menuAvatarElement = document.querySelector('.avatar-section img');
+      if (menuAvatarElement) {
+        menuAvatarElement.src = userData.avatar_url;
+        menuAvatarElement.alt = userData.username || 'User Avatar';
+      }
+    }
+    
+  } catch (error) {
+    console.error('Ошибка при загрузке профиля пользователя:', error);
+  }
+}
+
+// Экспортируем функцию для использования в других модулях
+window.loadUserProfile = loadUserProfile;
+
 // --- Логика для сообщений в футере ---
 function addFooterMessage(msg, type = 'info') {
   let log = JSON.parse(localStorage.getItem('footerLog') || '[]');
@@ -139,12 +179,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Проверяем наличие функции authorizedFetch перед вызовом checkDBState
   if (window.authorizedFetch) {
     checkDBState();
+    
+    // Загружаем профиль пользователя при загрузке страницы
+    loadUserProfile();
   } else {
     console.error('authorizedFetch не найден! Убедитесь, что auth.js загружен до menu.js');
     setTimeout(() => {
       if (window.authorizedFetch) {
         console.log('authorizedFetch появился с задержкой, выполняем checkDBState');
         checkDBState();
+        
+        // Загружаем профиль пользователя с задержкой
+        loadUserProfile();
       }
     }, 500);
   }

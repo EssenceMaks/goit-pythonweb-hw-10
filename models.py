@@ -41,6 +41,7 @@ class UserAvatar(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     file_path = Column(String, nullable=False)
+    cloudinary_public_id = Column(String, nullable=True)  # Добавляем поле для хранения public_id из Cloudinary
     is_approved = Column(Integer, default=0)  # 0 - not approved, 1 - approved
     is_main = Column(Integer, default=0)      # 0 - not main, 1 - main
     request_type = Column(String, default='upload')  # 'upload' or 'set_main'

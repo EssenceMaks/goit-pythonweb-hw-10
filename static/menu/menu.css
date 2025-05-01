@@ -174,9 +174,9 @@
 }
 
 .user-avatar {
-    width: 130px;
+    width: 156px;
     height: auto;
-    border-radius: 50%;
+    border-radius: 5px;
     background-color: rgba(74, 144, 226, 0.25);
     padding: 5px;
     border: 2px solid rgba(255, 255, 255, 0.1);

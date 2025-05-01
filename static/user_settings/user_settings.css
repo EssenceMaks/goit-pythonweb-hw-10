@@ -264,6 +264,214 @@ body.popup-open {
   max-width: 500px;
 }
 
+/* Стили для галереи аватаров */
+.user_avatar_cloudinary {
+  margin-top: 10px;
+  display: none;
+}
+
+.user_avatar_cloudinary.show-avatars {
+  display: block;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 15px;
+}
+
+.avatars-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.avatar-item {
+  position: relative;
+  width: 100px;
+  height: 156px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.avatar-item.main-avatar {
+  border: 2px solid #4CAF50;
+}
+
+.avatar-item img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-actions {
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.avatar-actions button {
+  width: 100%;
+  font-size: 10px;
+  padding: 2px;
+  background-color: #f0f0f0;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.set-main-avatar-btn {
+  color: #2196F3;
+}
+
+.delete-avatar-btn {
+  color: #f44336;
+}
+
+.avatar-actions button:hover {
+  background-color: #e0e0e0;
+}
+
+/* Стили для формы загрузки аватара */
+.avatar-upload-form {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 350px;
+  background-color: white;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.upload-form-header {
+  background-color: #f5f5f5;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.upload-form-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.close-upload-form-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+}
+
+.upload-form-content {
+  padding: 15px;
+}
+
+.file-input-container {
+  margin-bottom: 15px;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-label {
+  display: inline-block;
+  padding: 8px 12px;
+  background-color: #4CAF50;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.file-preview-container {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.avatar-preview-img {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.remove-file-btn {
+  padding: 5px 10px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.upload-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.upload-actions button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.upload-avatar-submit-btn {
+  background-color: #2196F3;
+  color: white;
+}
+
+.upload-avatar-submit-btn:disabled {
+  background-color: #b0b0b0;
+  cursor: not-allowed;
+}
+
+.cancel-upload-btn {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+/* Обновленные стили для кнопок изменения аватара */
+#avatar-row .settings-action {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.upload-avatar-btn, .change-avatar-btn {
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.no-avatars, .loading-indicator, .error-message {
+  padding: 10px;
+  text-align: center;
+  color: #666;
+}
+
+.error-message {
+  color: #f44336;
+}
+
 /* Адаптивные стили для мобильных устройств */
 @media (max-width: 768px) {
   .settings-row {

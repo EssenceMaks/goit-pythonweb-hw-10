@@ -94,14 +94,18 @@ async function renderUserSettings() {
             </div>
           </div>
           
-          <div class="settings-row">
+          <div class="settings-row" id="avatar-row">
             <div class="settings-label">Аватар:</div>
             <div class="settings-value">
               <div class="avatar-preview">
                 <img src="${currentUserData.avatar_url || '/static/menu/img/user_1.png'}" alt="Аватар користувача">
               </div>
+              <div class="user_avatar_cloudinary">
+                <!-- Здесь будут отображаться загруженные аватары -->
+              </div>
             </div>
             <div class="settings-action">
+              <button class="upload-avatar-btn">Додати аватар</button>
               <button class="change-avatar-btn">Змінити аватар</button>
             </div>
           </div>
@@ -122,6 +126,11 @@ async function renderUserSettings() {
       container.addEventListener('click', function(e) {
         e.stopPropagation(); // Останавливаем всплытие события
       });
+    }
+    
+    // Загружаем аватары пользователя (вызываем функцию из user_avatar_settings.js)
+    if (typeof loadUserAvatars === 'function') {
+      loadUserAvatars();
     }
     
   } catch (error) {
@@ -206,14 +215,36 @@ function setupSettingsEventHandlers() {
     });
   }
   
-  // Изменение аватара
-  const changeAvatarBtn = document.querySelector('.change-avatar-btn');
-  if (changeAvatarBtn) {
-    changeAvatarBtn.addEventListener('click', function(e) {
-      e.stopPropagation(); // Предотвращаем всплытие события
-      // Заглушка для будущей функциональности
-      alert('Функціонал зміни аватара буде доступний незабаром');
-    });
+  // Настраиваем обработчики событий для кнопок аватаров, если функция доступна
+  if (typeof window.setupUserAvatars === 'function') {
+    console.log('Вызываем функцию настройки аватаров из user_avatar_settings.js');
+    window.setupUserAvatars();
+  } else {
+    console.error('Функция setupUserAvatars не найдена. Проверьте, загружен ли файл user_avatar_settings.js');
+    
+    // Резервный вариант - добавляем простые обработчики
+    const uploadAvatarBtn = document.querySelector('.upload-avatar-btn');
+    const changeAvatarBtn = document.querySelector('.change-avatar-btn');
+    
+    if (uploadAvatarBtn) {
+      uploadAvatarBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        alert('Функция загрузки аватара временно недоступна. Пожалуйста, проверьте, что файл user_avatar_settings.js правильно подключен.');
+      });
+    }
+    
+    if (changeAvatarBtn) {
+      changeAvatarBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const avatarsContainer = document.querySelector('.user_avatar_cloudinary');
+        if (avatarsContainer) {
+          avatarsContainer.classList.toggle('show-avatars');
+          this.textContent = avatarsContainer.classList.contains('show-avatars') ? 'Сховати аватари' : 'Змінити аватар';
+        } else {
+          alert('Контейнер для аватаров не найден.');
+        }
+      });
+    }
   }
 }
 
@@ -435,26 +466,5 @@ async function savePassword() {
   } catch (error) {
     console.error('Ошибка при изменении пароля:', error);
     alert('Помилка при зміні пароля. Можливо, поточний пароль введено невірно.');
-  }
-}
-
-// Функция для сброса пароля
-async function initiatePasswordReset() {
-  if (confirm('Ви впевнені, що хочете скинути пароль? На вашу електронну пошту буде відправлено посилання для встановлення нового пароля.')) {
-    try {
-      // Отправляем запрос на сброс пароля
-      const response = await authorizedFetch('/password/reset', {
-        method: 'POST'
-      });
-      
-      if (typeof addFooterMessage === 'function') {
-        addFooterMessage('Посилання для скидання пароля відправлено на вашу електронну пошту', 'success');
-      } else {
-        alert('Посилання для скидання пароля відправлено на вашу електронну пошту');
-      }
-    } catch (error) {
-      console.error('Ошибка при запросе сброса пароля:', error);
-      alert('Помилка при запиті на скидання пароля');
-    }
   }
 }

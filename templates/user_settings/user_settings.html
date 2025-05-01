@@ -5,7 +5,7 @@
     <h2>Налаштування користувача</h2>
   </div>
   
-  <div class="settings-form">
+  <div class="settings-form" id="settings-container">
     <div class="settings-row">
       <div class="settings-label">Email:</div>
       <div class="settings-value" id="user-email"></div>
@@ -31,15 +31,19 @@
       </div>
     </div>
     
-    <div class="settings-row">
+    <div class="settings-row" id="avatar-row">
       <div class="settings-label">Аватар:</div>
       <div class="settings-value">
         <div class="avatar-preview">
           <img id="user-avatar" src="/static/menu/img/user_1.png" alt="Аватар користувача">
         </div>
+        <div class="user_avatar_cloudinary">
+          <!-- Здесь будет отображаться галерея аватаров -->
+        </div>
       </div>
       <div class="settings-action">
-        <button class="change-avatar-btn">Змінити аватар</button>
+        <button class="upload-avatar-btn">Додати аватар</button>
+        <button class="change-avatar-btn">Керувати аватарами</button>
       </div>
     </div>
   </div>
