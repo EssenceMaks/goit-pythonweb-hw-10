@@ -331,6 +331,50 @@ async def switch_account(
     request: Request,
     user_id: int
 ):
+    # Проверка на суперадмина (ID = -1)
+    if user_id == -1:
+        # Получаем данные суперадмина из переменных окружения
+        superadmin_username = os.getenv("SUPERADMIN_USERNAME")
+        
+        if not superadmin_username:
+            return RedirectResponse(url="/login", status_code=303)
+        
+        # Сохраняем данные суперадмина в сессии
+        request.session["user"] = {
+            "id": -1,
+            "username": superadmin_username,
+            "email": superadmin_username,
+            "role": "superadmin"
+        }
+        
+        # Создаем JWT-токен для API-запросов суперадмина
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={
+                "sub": superadmin_username, 
+                "id": -1, 
+                "role": "superadmin",
+                "email": superadmin_username
+            }, 
+            expires_delta=access_token_expires
+        )
+        
+        # Удаляем домен из email для URL
+        clean_username = clean_username_for_url(superadmin_username)
+        response = RedirectResponse(url=f"/{clean_username}_superadmin/", status_code=303)
+        
+        # Устанавливаем cookie с токеном для суперадмина
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=1800,  # 30 минут в секундах
+            path="/"
+        )
+        
+        return response
+    
+    # Обычная обработка для других пользователей
     db = SessionLocal()
     try:
         # Получаем пользователя по ID

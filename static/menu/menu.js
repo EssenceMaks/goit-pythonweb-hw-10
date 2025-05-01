@@ -408,11 +408,17 @@ function updateAccountsDropdown() {
         // Проверяем наличие ID для сравнения
         const isCurrentAccount = account.id === window.currentUserId;
         
+        // Обрезаем длинный email до 15 символов и добавляем многоточие
+        let displayName = account.email || account.username || 'Неизвестный пользователь';
+        if (displayName.length > 15) {
+            displayName = displayName.substring(0, 15) + '...';
+        }
+        
         const accountItem = document.createElement('div');
         accountItem.className = 'account-item' + (isCurrentAccount ? ' active-account' : '');
         accountItem.innerHTML = `
             <div class="account-info">
-                <div class="account-name">${account.email || account.username || 'Неизвестный пользователь'}</div>
+                <div class="account-name">${displayName}</div>
                 <div class="account-role">${account.role || 'user'}</div>
             </div>
             ${isCurrentAccount ? '<div class="current-marker">✓</div>' : ''}
