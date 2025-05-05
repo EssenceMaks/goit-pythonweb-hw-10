@@ -84,11 +84,14 @@ async def read_contacts_grouped(
         else:
             contacts = sorted(contacts, key=lambda c: (c.first_name or '').lower())
         
-        # Проверяем и исправляем email перед сериализацией
+        # Улучшенная проверка и исправление email перед сериализацией
         email = u.email
-        if not email or '@' not in email:
+        if not email or '@' not in email or ' ' in email:
             # Если email некорректный, создаем валидный email на основе имени пользователя
-            email = f"{u.username.replace(' ', '.')}@example.com"
+            # Удаляем все недопустимые символы и заменяем пробелы точками
+            safe_username = u.username.replace(' ', '.').replace('@', '.').strip()
+            email = f"{safe_username}@example.com"
+            logging.info(f"Исправлен email для пользователя {u.id} с '{u.email}' на '{email}'")
             
         # Сериализуем ORM-объекты через pydantic
         contacts_data = [schemas.Contact.model_validate(c, from_attributes=True) for c in contacts]
@@ -102,11 +105,14 @@ async def read_contacts_grouped(
             ))
         except Exception as e:
             logging.error(f"Ошибка при создании UserWithContacts для пользователя {u.id}: {str(e)}")
+            # Создаем гарантированно валидный email
+            fallback_email = f"user{u.id}@example.com"
+            logging.info(f"Используем запасной email {fallback_email} для пользователя {u.id}")
             # Добавляем с пустым списком контактов вместо полного исключения
             result.append(schemas.UserWithContacts(
                 id=u.id,
                 username=u.username,
-                email=email,
+                email=fallback_email,
                 role=u.role or "user",
                 contacts=[]
             ))
@@ -170,11 +176,13 @@ async def read_birthdays_grouped_by_users(
         
         # Не добавляем пользователей без контактов с днями рождения
         if next7_contacts or next12_contacts:
-            # Проверяем и исправляем email перед сериализацией
+            # Улучшенная проверка и исправление email перед сериализацией
             email = user.email
-            if not email or '@' not in email:
+            if not email or '@' not in email or ' ' in email:
                 # Если email некорректный, создаем валидный email на основе имени пользователя
-                email = f"{user.username.replace(' ', '.')}@example.com"
+                safe_username = user.username.replace(' ', '.').replace('@', '.').strip()
+                email = f"{safe_username}@example.com"
+                logging.info(f"Исправлен email для пользователя {user.id} с '{user.email}' на '{email}'")
             
             try:
                 # Сериализуем контакты
@@ -184,18 +192,22 @@ async def read_birthdays_grouped_by_users(
                 result.append(schemas.UserWithBirthdays(
                     id=user.id,
                     username=user.username,
-                    email=email,  # Используем исправленный email
+                    email=email,
                     role=user.role or "user",
                     contacts_next7days=next7_data,
                     contacts_next12months=next12_data
                 ))
             except Exception as e:
                 logging.error(f"Ошибка при создании UserWithBirthdays для пользователя {user.id}: {str(e)}")
+                # Создаем гарантированно валидный email
+                fallback_email = f"user{user.id}@example.com"
+                logging.info(f"Используем запасной email {fallback_email} для пользователя {user.id}")
+                
                 # Добавляем с пустыми списками контактов вместо полного исключения
                 result.append(schemas.UserWithBirthdays(
                     id=user.id,
                     username=user.username,
-                    email=email,  # Используем исправленный email
+                    email=fallback_email,
                     role=user.role or "user",
                     contacts_next7days=[],
                     contacts_next12months=[]
