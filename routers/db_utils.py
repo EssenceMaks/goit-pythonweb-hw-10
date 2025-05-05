@@ -2,11 +2,12 @@ from fastapi import APIRouter, HTTPException, Request, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import inspect, text
-from database import engine, SessionLocal
+from database import engine, SessionLocal, is_docker_environment, is_render_environment
 import models
 from faker import Faker
 import psycopg2
 import os
+import re
 from urllib.parse import urlparse
 from typing import Optional
 
@@ -16,6 +17,55 @@ optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token", auto_error=Fals
 # Удаляем префикс "/db", так как он уже указан в main.py при подключении роутера
 router = APIRouter(tags=["Database Utils"])
 faker = Faker()
+
+# Функция для получения параметров подключения к базе данных
+def get_db_params():
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url:
+        # Исправляем URL для совместимости
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        
+        # Извлекаем параметры из строки подключения
+        pattern = r"postgresql://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:/]+)(?::(?P<port>\d+))?/(?P<dbname>[^?]+)"
+        match = re.search(pattern, database_url)
+        
+        if match:
+            host = match.group("host")
+            user = match.group("user")
+            password = match.group("password")
+            db_name = match.group("dbname")
+            port = match.group("port") or "5432"
+            
+            return {
+                'host': host,
+                'user': user,
+                'password': password,
+                'db_name': db_name,
+                'port': port
+            }
+    
+    # Второй приоритет: отдельные переменные окружения
+    db_name = os.getenv('DB_NAME', 'contacts_db')
+    db_user = os.getenv('DB_USER', 'postgres')
+    db_password = os.getenv('DB_PASSWORD', 'postgres')
+    
+    # Определяем host в зависимости от окружения
+    if is_docker_environment():
+        db_host = os.getenv('DB_HOST', 'db')  # 'db' - для Docker
+    else:
+        db_host = os.getenv('DB_HOST', 'localhost')  # 'localhost' - для локальной разработки
+        
+    db_port = os.getenv('DB_PORT', '5432')
+    
+    return {
+        'host': db_host,
+        'user': db_user,
+        'password': db_password,
+        'db_name': db_name,
+        'port': db_port
+    }
 
 @router.get("/status")
 def db_status():
@@ -248,53 +298,94 @@ def db_check_state(token: Optional[str] = Depends(optional_oauth2_scheme)):
 
 @router.post("/create-db")
 def create_database(request: Request):
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
+    # Получаем параметры для подключения к базе данных
+    params = get_db_params()
+    
+    if not params['password'] or params['password'] == "YOUR_PASSWORD":
         return {"status": "noenv", "message": "Для створення бази встановіть налаштування в коді за допомогою <br> env.example та перезавантажте сервер"}
-    url = urlparse(db_url)
-    db_name = url.path[1:]
-    user = url.username
-    password = url.password
-    host = url.hostname
-    port = url.port or 5432
-    # Перевірка на дефолтний пароль/відсутність пароля
-    if not password or password == "YOUR_PASSWORD":
-        return {"status": "noenv", "message": "Для створення бази встановіть налаштування в коді за допомогою <br> env.example та перезавантажте сервер"}
+    
     try:
-        conn = psycopg2.connect(dbname='postgres', user=user, password=password, host=host, port=port)
+        # Подключаемся к postgres для создания новой базы
+        conn = psycopg2.connect(
+            dbname='postgres',
+            user=params['user'],
+            password=params['password'],
+            host=params['host'],
+            port=params['port'],
+            connect_timeout=10
+        )
         conn.autocommit = True
         cur = conn.cursor()
-        cur.execute(f"CREATE DATABASE {db_name}")
-        cur.close()
-        conn.close()
-        return {"status": "created", "message": f"База даних '{db_name}' створена."}
-    except psycopg2.errors.DuplicateDatabase:
-        return {"status": "exists", "message": f"База даних '{db_name}' вже існує."}
+        
+        # Проверяем существование базы данных
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (params['db_name'],))
+        exists = cur.fetchone()
+        
+        if not exists:
+            # Создаем базу данных, если она не существует
+            cur.execute(f"CREATE DATABASE {params['db_name']}")
+            cur.close()
+            conn.close()
+            return {"status": "created", "message": f"База даних '{params['db_name']}' створена."}
+        else:
+            cur.close()
+            conn.close()
+            return {"status": "exists", "message": f"База даних '{params['db_name']}' вже існує."}
+    except psycopg2.OperationalError as e:
+        error_msg = str(e)
+        if "connect" in error_msg.lower() or "unable to open database" in error_msg.lower():
+            if is_docker_environment():
+                return {"status": "error", "message": f"Помилка підключення до сервера PostgreSQL. Переконайтеся, що сервіс 'db' запущений: {error_msg}"}
+            else:
+                return {"status": "error", "message": f"Помилка підключення до сервера PostgreSQL: {error_msg}"}
+        return {"status": "error", "message": f"Операційна помилка: {error_msg}"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": f"Помилка: {str(e)}"}
 
 @router.post("/drop-db")
 def drop_database(request: Request):
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        raise HTTPException(status_code=500, detail="DATABASE_URL не задан.")
-    url = urlparse(db_url)
-    db_name = url.path[1:]
-    user = url.username
-    password = url.password
-    host = url.hostname
-    port = url.port or 5432
+    # Получаем параметры подключения
+    params = get_db_params()
+    
     try:
-        conn = psycopg2.connect(dbname='postgres', user=user, password=password, host=host, port=port)
+        # Подключаемся к postgres для удаления существующей базы
+        conn = psycopg2.connect(
+            dbname='postgres',
+            user=params['user'],
+            password=params['password'],
+            host=params['host'],
+            port=params['port'],
+            connect_timeout=10
+        )
         conn.autocommit = True
         cur = conn.cursor()
-        # Відключити користувачів від бази
-        cur.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}'")
-        cur.execute(f"DROP DATABASE {db_name}")
+        
+        # Проверяем существование базы данных
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (params['db_name'],))
+        exists = cur.fetchone()
+        
+        if not exists:
+            cur.close()
+            conn.close()
+            return {"status": "not_found", "message": f"База даних '{params['db_name']}' не знайдена."}
+        
+        # Отключаем пользователей от базы данных
+        cur.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s", (params['db_name'],))
+        
+        # Удаляем базу данных
+        cur.execute(f"DROP DATABASE {params['db_name']}")
         cur.close()
         conn.close()
-        return {"status": "dropped", "message": f"База даних '{db_name}' видалена."}
+        return {"status": "dropped", "message": f"База даних '{params['db_name']}' видалена."}
+    except psycopg2.OperationalError as e:
+        error_msg = str(e)
+        if "connect" in error_msg.lower():
+            if is_docker_environment():
+                return {"status": "error", "message": f"Помилка підключення до сервера PostgreSQL. Переконайтеся, що сервіс 'db' запущений: {error_msg}"}
+            else:
+                return {"status": "error", "message": f"Помилка підключення до сервера PostgreSQL: {error_msg}"}
+        return {"status": "error", "message": f"Операційна помилка: {error_msg}"}
     except psycopg2.errors.InvalidCatalogName:
-        return {"status": "not_found", "message": f"База даних '{db_name}' не знайдена."}
+        return {"status": "not_found", "message": f"База даних '{params['db_name']}' не знайдена."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": "error", "message": f"Помилка: {str(e)}"}

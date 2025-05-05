@@ -15,9 +15,12 @@ import logging
 import time
 import sqlalchemy.exc
 from pydantic import EmailStr
+import psycopg2
+import re
+
 # Добавляем импорт роутера users
 from routers import contacts, groups, db_utils, email_verification, users
-from database import SessionLocal, engine, Base, is_render_environment
+from database import SessionLocal, engine, Base, is_render_environment, is_docker_environment
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
 import os
@@ -34,6 +37,65 @@ load_dotenv()
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Функция для создания базы данных, если она не существует
+def ensure_database_exists():
+    # Получаем данные подключения из переменных окружения
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url:
+        # Исправляем URL для совместимости с SQLAlchemy
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        
+        # Извлекаем параметры из строки подключения
+        pattern = r"postgresql://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:/]+)(?::(?P<port>\d+))?/(?P<dbname>[^?]+)"
+        match = re.search(pattern, database_url)
+        
+        if match:
+            host = match.group("host")
+            user = match.group("user") 
+            password = match.group("password")
+            db_name = match.group("dbname")
+            port = match.group("port") or "5432"
+            
+            logger.info(f"Проверка существования базы данных '{db_name}' на сервере {host}...")
+            
+            try:
+                # Подключаемся к postgres для проверки и создания базы
+                conn = psycopg2.connect(
+                    dbname='postgres',
+                    user=user,
+                    password=password,
+                    host=host,
+                    port=port,
+                    connect_timeout=10
+                )
+                conn.autocommit = True
+                cur = conn.cursor()
+                
+                # Проверяем существование базы данных
+                cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+                exists = cur.fetchone()
+                
+                if not exists:
+                    logger.info(f"База данных '{db_name}' не существует. Создаю...")
+                    cur.execute(f"CREATE DATABASE {db_name}")
+                    logger.info(f"База данных '{db_name}' успешно создана!")
+                else:
+                    logger.info(f"База данных '{db_name}' уже существует.")
+                
+                cur.close()
+                conn.close()
+                return True
+            except Exception as e:
+                logger.error(f"Ошибка при проверке/создании базы данных: {str(e)}")
+                # В Docker контейнере PostgreSQL может быть недоступен сразу после запуска
+                # поэтому продолжаем выполнение, даже если сейчас не удалось создать БД
+                return False
+    else:
+        logger.warning("DATABASE_URL не задан в переменных окружения")
+        return False
 
 # Инициализация приложения
 app = FastAPI(title="Contacts API")
@@ -60,15 +122,25 @@ app.include_router(email_verification.router)
 # Создаем таблицы базы данных при запуске приложения
 @app.on_event("startup")
 async def startup_db_and_tables():
-    logger.info("Инициализация приложения и создание таблиц базы данных...")
+    logger.info("Инициализация приложения...")
     
-    # Добавляем задержку при запуске на Render.com, чтобы дать БД время инициализироваться
-    if is_render_environment():
-        logger.info("Обнаружено окружение Render.com, ожидаем инициализацию внешних сервисов...")
+    # Добавляем задержку при запуске на Render.com или в Docker,
+    # чтобы дать БД время инициализироваться
+    if is_render_environment() or is_docker_environment():
+        logger.info("Обнаружено окружение Render.com или Docker, ожидаем инициализацию внешних сервисов...")
         time.sleep(5)  # Даем время для инициализации внешних сервисов
-        
+    
+    # Сначала проверяем существование базы данных и создаем её при необходимости
+    logger.info("Проверка наличия базы данных...")
+    database_created = ensure_database_exists()
+    
+    if database_created:
+        logger.info("База данных доступна. Продолжаем инициализацию...")
+    else:
+        logger.warning("Не удалось создать базу данных сейчас. Попытаемся создать таблицы позже...")
+    
     # Пытаемся установить соединение с базой данных с повторными попытками
-    max_retries = 5
+    max_retries = 10 if (is_render_environment() or is_docker_environment()) else 5
     retry_delay = 3  # Секунды между попытками
     
     for attempt in range(max_retries):
@@ -82,6 +154,9 @@ async def startup_db_and_tables():
             if attempt < max_retries - 1:
                 logger.info(f"Повторная попытка через {retry_delay} секунд...")
                 time.sleep(retry_delay)
+                # Попробуем создать БД снова
+                if attempt == max_retries // 2:
+                    ensure_database_exists()
             else:
                 logger.error("Все попытки подключения к базе данных исчерпаны")
                 logger.error("Приложение продолжит работу, но функции, требующие базу данных, будут недоступны")
@@ -386,6 +461,10 @@ async def change_user_role(
     current_user_id = request.session["user"].get("id")
     current_user_role = request.session["user"].get("role")
     
+    # Логирование для отладки
+    print(f"Текущий пользователь: id={current_user_id}, роль={current_user_role}")
+    print(f"Изменение роли для пользователя с ID={user_id}, новая роль={role_data.get('role')}")
+    
     # Проверяем, не пытается ли пользователь изменить свою собственную роль
     if str(current_user_id) == str(user_id):
         raise HTTPException(
@@ -401,7 +480,7 @@ async def change_user_role(
             detail="Недопустимая роль. Допустимые значения: 'user', 'admin'",
         )
     
-    # Проверяем, что пользователь не пытается изменить роль суперадмина или роль админа (если сам не суперадмин)
+    # Проверяем, что пользователь не пытается изменить роль суперадмина
     db = SessionLocal()
     try:
         user_to_change = get_user_by_id(db, user_id)
@@ -411,24 +490,26 @@ async def change_user_role(
                 detail=f"Пользователь с ID {user_id} не найден",
             )
         
+        # Логирование для отладки
+        print(f"Пользователь для изменения: id={user_to_change.id}, роль={user_to_change.role}")
+        
         # Запрещаем менять роль суперадмина
         if user_to_change.role == "superadmin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Невозможно изменить роль суперадмина",
             )
-            
-        # Админ не может изменять роль других админов, только суперадмин может
-        if user_to_change.role == "admin" and current_user_role != "superadmin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Админ не может менять роль других админов, только суперадмин может это делать",
-            )
         
         # Обновляем роль пользователя
         updated_user = update_user_role(db, user_id, new_role)
+        print(f"Роль пользователя успешно изменена на: {new_role}")
         
-        return {"status": "success", "message": f"Роль пользователя изменена на {new_role}"}
+        return {
+            "status": "success", 
+            "message": f"Роль пользователя изменена на {new_role}",
+            "user_id": user_id,
+            "new_role": new_role
+        }
     finally:
         db.close()
 
