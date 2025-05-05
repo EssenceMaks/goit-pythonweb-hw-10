@@ -11,10 +11,11 @@ from datetime import timedelta, datetime
 from jose import JWTError, jwt
 import secrets
 import uuid
+import logging
 from pydantic import EmailStr
 # Добавляем импорт роутера users
 from routers import contacts, groups, db_utils, email_verification, users
-from database import SessionLocal, engine
+from database import SessionLocal, engine, Base
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
 import os
@@ -27,6 +28,10 @@ from utils_email_verif import send_verification_email, send_password_reset_email
 from rate_limiter import init_limiter
 
 load_dotenv()
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Инициализация приложения
 app = FastAPI(title="Contacts API")
@@ -50,10 +55,53 @@ app.include_router(users.router)
 # чтобы /auth/register был доступен
 app.include_router(email_verification.router)
 
-# Инициализация rate limiter при запуске приложения
+# Создаем таблицы базы данных при запуске приложения
 @app.on_event("startup")
-async def startup():
-    await init_limiter()
+async def startup_db_and_tables():
+    logger.info("Инициализация приложения и создание таблиц базы данных...")
+    try:
+        # Создаем все таблицы, определенные в моделях
+        Base.metadata.create_all(bind=engine)
+        logger.info("Таблицы базы данных успешно созданы или уже существуют")
+        
+        # Создаем супер-админа, если он не существует
+        db = SessionLocal()
+        try:
+            superadmin_username = os.getenv("SUPERADMIN_USERNAME")
+            superadmin_password = os.getenv("SUPERADMIN_PASSWORD")
+            superadmin_email = os.getenv("SUPER_ADMIN_EMAIL", "superadmin@example.com")
+            
+            if superadmin_username and superadmin_password:
+                # Проверяем, существует ли уже супер-админ
+                existing_admin = get_user_by_username(db, superadmin_username)
+                
+                if not existing_admin:
+                    logger.info(f"Создаем учетную запись супер-админа: {superadmin_username}")
+                    # Создаем запись супер-админа в базе данных
+                    hashed_password = models.User.get_password_hash(superadmin_password)
+                    superadmin = models.User(
+                        username=superadmin_username,
+                        email=superadmin_email,
+                        hashed_password=hashed_password,
+                        role="superadmin",
+                        is_verified=True  # Супер-админ не требует верификации
+                    )
+                    db.add(superadmin)
+                    db.commit()
+                    logger.info("Учетная запись супер-админа успешно создана")
+                else:
+                    logger.info("Учетная запись супер-админа уже существует")
+        except Exception as e:
+            logger.error(f"Ошибка при создании супер-админа: {e}")
+        finally:
+            db.close()
+            
+        # Инициализация rate limiter
+        await init_limiter()
+        
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        # Продолжаем запуск приложения даже при ошибке инициализации БД
 
 # Настройка сессий
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "default_secret_key"))
