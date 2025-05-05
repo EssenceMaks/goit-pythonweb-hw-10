@@ -21,7 +21,7 @@ def get_database_url():
         db_name = os.getenv("DB_NAME")
         db_user = os.getenv("DB_USER")
         db_password = os.getenv("DB_PASSWORD")
-        db_host = os.getenv("DB_HOST", "postgres")  # По умолчанию используем 'postgres' для Docker
+        db_host = os.getenv("DB_HOST", "postgres")  # По умолчанию 'postgres' для Docker
         db_port = os.getenv("DB_PORT", "5432")
         
         if db_name and db_user and db_password:
@@ -32,24 +32,37 @@ def get_database_url():
         logger.warning("DATABASE_URL не задан в переменных окружения, используется значение по умолчанию")
         database_url = "postgresql://postgres:postgres@postgres:5432/contacts_db"
     
-    # Для совместимости с SQLAlchemy, если URL начинается с 'postgres://' (как в Render), 
-    # заменяем на 'postgresql://'
-    if database_url and database_url.startswith("postgres://"):
+    # Для совместимости с SQLAlchemy, если URL начинается с 'postgres://'
+    if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     
     # Безопасно выводим URL без пароля для отладки
-    safe_url = database_url.split('@')[0].split(':')[0:2]
-    safe_url = ':'.join(safe_url) + ':***@' + '@'.join(database_url.split('@')[1:])
-    logger.info(f"Connecting to database: {safe_url}")
+    safe_url = database_url.split('@')[0].split(':')
+    if len(safe_url) >= 3:
+        safe_db_url = f"{safe_url[0]}:{safe_url[1]}:****@{database_url.split('@')[1]}"
+        logger.info(f"Connecting to database: {safe_db_url}")
     
     return database_url
 
+# Создаем глобальный URL для базы данных
 DATABASE_URL = get_database_url()
-engine = create_engine(DATABASE_URL, pool_size=5, max_overflow=10, pool_recycle=3600)
+
+# Создаем движок базы данных
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=3600,
+    pool_pre_ping=True  # Важно: проверяет соединение перед использованием
+)
+
+# Создаем фабрику сессий
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Класс для моделей SQLAlchemy
 Base = declarative_base()
 
-# Функция для получения сессии базы данных
+# Функция для получения соединения с БД в виде зависимости FastAPI
 def get_db():
     db = SessionLocal()
     try:
