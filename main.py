@@ -12,10 +12,12 @@ from jose import JWTError, jwt
 import secrets
 import uuid
 import logging
+import time
+import sqlalchemy.exc
 from pydantic import EmailStr
 # Добавляем импорт роутера users
 from routers import contacts, groups, db_utils, email_verification, users
-from database import SessionLocal, engine, Base
+from database import SessionLocal, engine, Base, is_render_environment
 from crud import get_user_by_username, update_user_role, get_user_by_id
 import models
 import os
@@ -59,17 +61,47 @@ app.include_router(email_verification.router)
 @app.on_event("startup")
 async def startup_db_and_tables():
     logger.info("Инициализация приложения и создание таблиц базы данных...")
-    try:
-        # Создаем все таблицы, определенные в моделях
-        Base.metadata.create_all(bind=engine)
-        logger.info("Таблицы базы данных успешно созданы или уже существуют")
+    
+    # Добавляем задержку при запуске на Render.com, чтобы дать БД время инициализироваться
+    if is_render_environment():
+        logger.info("Обнаружено окружение Render.com, ожидаем инициализацию внешних сервисов...")
+        time.sleep(5)  # Даем время для инициализации внешних сервисов
         
+    # Пытаемся установить соединение с базой данных с повторными попытками
+    max_retries = 5
+    retry_delay = 3  # Секунды между попытками
+    
+    for attempt in range(max_retries):
+        try:
+            # Пытаемся создать таблицы в базе данных
+            Base.metadata.create_all(bind=engine)
+            logger.info(f"Таблицы базы данных успешно созданы (попытка {attempt+1})")
+            break
+        except sqlalchemy.exc.OperationalError as e:
+            logger.error(f"Ошибка подключения к базе данных (попытка {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Повторная попытка через {retry_delay} секунд...")
+                time.sleep(retry_delay)
+            else:
+                logger.error("Все попытки подключения к базе данных исчерпаны")
+                logger.error("Приложение продолжит работу, но функции, требующие базу данных, будут недоступны")
+                # Не завершаем приложение, позволяя ему продолжить работать с ограниченной функциональностью
+        except Exception as e:
+            logger.error(f"Непредвиденная ошибка при инициализации базы данных: {e}")
+            break
+    
+    # Пытаемся создать супер-админа
+    try:
         # Создаем супер-админа, если он не существует
         db = SessionLocal()
         try:
             superadmin_username = os.getenv("SUPERADMIN_USERNAME")
             superadmin_password = os.getenv("SUPERADMIN_PASSWORD")
-            superadmin_email = os.getenv("SUPER_ADMIN_EMAIL", "superadmin@example.com")
+            superadmin_email = os.getenv("SUPER_ADMIN_EMAIL", superadmin_username)
+            
+            # Если email не содержит @, добавляем домен по умолчанию
+            if superadmin_email and '@' not in superadmin_email:
+                superadmin_email = f"{superadmin_email}@example.com"
             
             if superadmin_username and superadmin_password:
                 # Проверяем, существует ли уже супер-админ
@@ -96,12 +128,15 @@ async def startup_db_and_tables():
         finally:
             db.close()
             
-        # Инициализация rate limiter
-        await init_limiter()
-        
     except Exception as e:
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
-        # Продолжаем запуск приложения даже при ошибке инициализации БД
+        logger.error(f"Ошибка при работе с базой данных: {e}")
+    
+    # Инициализация rate limiter
+    try:
+        await init_limiter()
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации rate limiter: {e}")
+        logger.info("Приложение продолжит работу без ограничения запросов (rate limiting)")
 
 # Настройка сессий
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "default_secret_key"))
