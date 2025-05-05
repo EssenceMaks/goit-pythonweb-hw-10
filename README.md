@@ -4,7 +4,7 @@
 
 ```sh
 # Клонувати репозиторій
-git clone https://github.com/YourUsername/goit-pythonweb-hw-10.git
+git clone https://github.com/EssenceMaks/goit-pythonweb-hw-10.git
 cd goit-pythonweb-hw-10
 
 # Заповнити файл .env необхідними даними
