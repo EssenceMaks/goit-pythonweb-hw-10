@@ -1,14 +1,13 @@
-# fly.toml app configuration file
+# fly.toml app configuration file generated for contact-hub
 app = "contact-hub"
-primary_region = "ams"  # Регион можно изменить на предпочтительный для вас
+primary_region = "ams"
 
 [build]
-  image = "registry.fly.io/contact-hub:latest"
+  # Удаляем строку с image, чтобы fly.io самостоятельно собрал образ из Dockerfile
 
 [env]
   PORT = "8080"
   DOCKER_ENV = "true"
-  CLOUD_RUN = "true"
 
 [http_service]
   internal_port = 8080
@@ -16,21 +15,6 @@ primary_region = "ams"  # Регион можно изменить на пред
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
-  processes = ["app"]
-
-[[services.ports]]
-  force_https = true
-  handlers = ["http"]
-  port = 80
-
-[[services.ports]]
-  handlers = ["tls", "http"]
-  port = 443
-
-[services.concurrency]
-  type = "connections"
-  hard_limit = 25
-  soft_limit = 20
 
 [[vm]]
   cpu_kind = "shared"
