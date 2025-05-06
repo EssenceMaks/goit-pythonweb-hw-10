@@ -1,0 +1,17 @@
+# Игнорируем временные файлы и каталоги
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+.idea/
+.vscode/
+
+# НЕ игнорируем важные файлы
+!docker-entrypoint.sh
+!requirements.txt
