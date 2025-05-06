@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y \
 # Установка переменных окружения
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DOCKER_ENV=true
+    DOCKER_ENV=true \
+    PORT=8080
 
 # Установка зависимостей
 COPY requirements.txt ./
@@ -29,4 +30,4 @@ COPY ./docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
